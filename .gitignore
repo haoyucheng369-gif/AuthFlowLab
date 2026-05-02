@@ -9,3 +9,4 @@ keys/*.key
 # Ignore build output
 bin/
 obj/
+\.vs/
