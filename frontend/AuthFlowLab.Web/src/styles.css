@@ -148,6 +148,13 @@ input:focus {
   font-size: 0.875rem;
 }
 
+.muted {
+  margin-bottom: 0;
+  color: #6c757d;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .card-header {
   display: flex;
   align-items: center;

@@ -8,8 +8,6 @@ import { TokenPanel } from './components/TokenPanel';
 import type { CallResult, TokenResponse } from './types';
 
 export function App() {
-  const [username, setUsername] = useState('user');
-  const [password, setPassword] = useState('user123');
   const [tokens, setTokens] = useState<TokenResponse | null>(() => readTokens());
   const [message, setMessage] = useState('');
   const [result, setResult] = useState<CallResult | null>(null);
@@ -35,7 +33,7 @@ export function App() {
   async function handleLogin() {
     setMessage('');
     setResult(null);
-    await startLogin(username, password);
+    await startLogin();
   }
 
   async function callApi(path: string, label: string) {
@@ -64,12 +62,8 @@ export function App() {
     <main className="app-shell">
       <LoginPanel
         message={message}
-        password={password}
-        username={username}
         onClear={logout}
         onLogin={() => void handleLogin()}
-        onPasswordChange={setPassword}
-        onUsernameChange={setUsername}
       />
 
       <SessionPanel

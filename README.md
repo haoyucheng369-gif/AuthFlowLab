@@ -154,7 +154,7 @@ The old lab-only `/auth/client-token` endpoint has been removed. Service tokens 
 
 ### Authorization Code + PKCE And OIDC
 
-The current lab version simulates the login page by accepting `username` and `password` on the authorize request. A real frontend will replace that with a browser login screen.
+The SPA starts the authorization request without sending a password. If the user is not signed in, Auth Server shows its own login page, creates an HTTP-only login cookie, and then redirects back to the original authorize request.
 
 When the request includes `openid`, Auth Server also returns an OIDC `id_token`. The `access_token` is for API access; the `id_token` is for the client application to know who logged in.
 
@@ -162,7 +162,7 @@ Start the authorization request:
 
 ```http
 # 中文注释: 发起授权码加 PKCE 的授权请求。
-GET http://127.0.0.1:5001/connect/authorize?response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback&scope=openid%20profile%20content.read&state=demo-state&nonce=demo-nonce&code_challenge=mvtzfCbIJ5YDPp1UVYfCnz2ZSvRrCEUgWtyrhVS6xo8&code_challenge_method=S256&username=user&password=user123
+GET http://127.0.0.1:5001/connect/authorize?response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback&scope=openid%20profile%20content.read&state=demo-state&nonce=demo-nonce&code_challenge=mvtzfCbIJ5YDPp1UVYfCnz2ZSvRrCEUgWtyrhVS6xo8&code_challenge_method=S256
 ```
 
 For this example:
@@ -286,7 +286,9 @@ npm run build
 2. Start API Server on `http://127.0.0.1:5002`.
 3. Start the Vite frontend on `http://127.0.0.1:5173`.
 4. Open the frontend and click `Login with PKCE`.
-5. Auth Server redirects back to `/callback` with an authorization code.
-6. The frontend exchanges the code for `access_token` and `id_token`.
-7. Click `Call API` to call `GET /content/read` with the access token.
-8. Click `UserInfo` to call `GET /connect/userinfo` with the access token.
+5. Auth Server shows its login page if there is no login cookie.
+6. Sign in with `user / user123` or `admin / admin123`.
+7. Auth Server redirects back to `/callback` with an authorization code.
+8. The frontend exchanges the code for `access_token` and `id_token`.
+9. Click `Call API` to call `GET /content/read` with the access token.
+10. Click `UserInfo` to call `GET /connect/userinfo` with the access token.

@@ -42,10 +42,11 @@ Accept: application/json
 grant_type=client_credentials&client_id=worker-service&client_secret=worker-secret&scope=content.read%20content.write
 
 ### Start authorization_code + PKCE
-# Browser receives 302. Copy code from the Location callback URL.
+# Browser receives 302 to /account/login unless it already has the Auth Server login cookie.
+# After login, copy code from the Location callback URL.
 # code_verifier = demo-code-verifier-1234567890
 # code_challenge = SHA256(code_verifier) base64url
-GET {{AuthServer}}/connect/authorize?response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback&scope=openid%20profile%20content.read&state=demo-state&nonce=demo-nonce&code_challenge=mvtzfCbIJ5YDPp1UVYfCnz2ZSvRrCEUgWtyrhVS6xo8&code_challenge_method=S256&username=user&password=user123
+GET {{AuthServer}}/connect/authorize?response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback&scope=openid%20profile%20content.read&state=demo-state&nonce=demo-nonce&code_challenge=mvtzfCbIJ5YDPp1UVYfCnz2ZSvRrCEUgWtyrhVS6xo8&code_challenge_method=S256
 Accept: application/json
 
 ### Exchange authorization code for token

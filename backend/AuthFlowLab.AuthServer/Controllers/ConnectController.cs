@@ -50,9 +50,7 @@ public class ConnectController : ControllerBase
         [FromQuery(Name = "state")] string? state,
         [FromQuery] string? nonce,
         [FromQuery(Name = "code_challenge")] string? codeChallenge,
-        [FromQuery(Name = "code_challenge_method")] string? codeChallengeMethod,
-        [FromQuery] string? username,
-        [FromQuery] string? password)
+        [FromQuery(Name = "code_challenge_method")] string? codeChallengeMethod)
     {
         /*
          * Authorization Code + PKCE has two server-side steps.
@@ -60,8 +58,7 @@ public class ConnectController : ControllerBase
          * Step 1: /connect/authorize
          * - The browser/front-end sends client_id, redirect_uri, scope, state, nonce, and code_challenge.
          * - AuthServer validates the registered client and redirect_uri.
-         * - AuthServer authenticates the user. This lab temporarily uses username/password query
-         *   values to simulate a login page; a real app should show a login form instead.
+         * - AuthServer authenticates the user with its own login page and cookie.
          * - AuthServer creates a short-lived one-time code and stores the PKCE code_challenge
          *   together with that code.
          * - AuthServer redirects back to redirect_uri with code and state.
@@ -90,12 +87,19 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("invalid_request", "PKCE S256 code_challenge is required."));
         }
 
-        var user = _authOptions.Users.FirstOrDefault(user =>
-            user.Username == username && user.Password == password);
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            // 中文注释: 未登录时跳转到 Auth Server 登录页，保留原始 authorize URL 作为登录后的 returnUrl。
+            var returnUrl = Request.PathBase + Request.Path + Request.QueryString;
+            var loginUrl = QueryHelpers.AddQueryString("/account/login", "returnUrl", returnUrl);
+            return Redirect(loginUrl);
+        }
 
+        var username = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(ClaimTypes.Name);
+        var user = _authOptions.Users.FirstOrDefault(user => user.Username == username);
         if (user is null)
         {
-            return Unauthorized(new AuthErrorResponse("invalid_grant", "The username or password is invalid."));
+            return Unauthorized(new AuthErrorResponse("invalid_grant", "The signed-in user is no longer valid."));
         }
 
         var requestedScopes = ResolveRequestedScopes(scope, user.Scopes);

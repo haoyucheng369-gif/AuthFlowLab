@@ -170,6 +170,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     [Fact]
     public async Task Authorize_WithPkce_RedirectsWithCodeAndState()
     {
+        await SignInOnAuthServer();
+
         var verifier = "test-code-verifier-1234567890";
         var challenge = CreateS256Challenge(verifier);
         var authorizeUrl = QueryHelpers.AddQueryString("/connect/authorize", new Dictionary<string, string?>
@@ -181,9 +183,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
             ["state"] = "abc-state",
             ["nonce"] = "abc-nonce",
             ["code_challenge"] = challenge,
-            ["code_challenge_method"] = "S256",
-            ["username"] = "test-user",
-            ["password"] = "user123"
+            ["code_challenge_method"] = "S256"
         });
 
         var response = await _client.GetAsync(authorizeUrl);
@@ -194,6 +194,31 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
         var callbackQuery = QueryHelpers.ParseQuery(response.Headers.Location.Query);
         Assert.Equal("abc-state", callbackQuery["state"]);
         Assert.False(string.IsNullOrWhiteSpace(callbackQuery["code"]));
+    }
+
+    [Fact]
+    public async Task Authorize_WhenNotSignedIn_RedirectsToLoginPage()
+    {
+        var verifier = "test-code-verifier-1234567890";
+        var authorizeUrl = QueryHelpers.AddQueryString("/connect/authorize", new Dictionary<string, string?>
+        {
+            ["response_type"] = "code",
+            ["client_id"] = "demo-spa",
+            ["redirect_uri"] = "http://127.0.0.1:5173/callback",
+            ["scope"] = "openid profile content.read",
+            ["state"] = "login-state",
+            ["nonce"] = "login-nonce",
+            ["code_challenge"] = CreateS256Challenge(verifier),
+            ["code_challenge_method"] = "S256"
+        });
+
+        var response = await _client.GetAsync(authorizeUrl);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);
+        var location = response.Headers.Location.ToString();
+        Assert.StartsWith("/account/login", location);
+        Assert.Contains("returnUrl=", location);
     }
 
     [Fact]
@@ -280,6 +305,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
         string scope = "content.read",
         string? nonce = null)
     {
+        await SignInOnAuthServer();
+
         var authorizeUrl = QueryHelpers.AddQueryString("/connect/authorize", new Dictionary<string, string?>
         {
             ["response_type"] = "code",
@@ -289,9 +316,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
             ["state"] = "token-test",
             ["nonce"] = nonce,
             ["code_challenge"] = CreateS256Challenge(verifier),
-            ["code_challenge_method"] = "S256",
-            ["username"] = "test-user",
-            ["password"] = "user123"
+            ["code_challenge_method"] = "S256"
         });
 
         var response = await _client.GetAsync(authorizeUrl);
@@ -299,6 +324,18 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
 
         var callbackQuery = QueryHelpers.ParseQuery(response.Headers.Location!.Query);
         return callbackQuery["code"].ToString();
+    }
+
+    private async Task SignInOnAuthServer()
+    {
+        var response = await _client.PostAsync("/account/login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["username"] = "test-user",
+            ["password"] = "user123",
+            ["returnUrl"] = "/"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
     private static string CreateS256Challenge(string verifier)

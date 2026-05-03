@@ -1,7 +1,7 @@
 import { authServer, clientId, redirectUri, scope, storageKeys } from './config';
 import type { TokenResponse } from './types';
 
-export async function startLogin(username: string, password: string) {
+export async function startLogin() {
   const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = await createCodeChallenge(verifier);
   const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
@@ -20,8 +20,6 @@ export async function startLogin(username: string, password: string) {
   authorizeUrl.searchParams.set('nonce', nonce);
   authorizeUrl.searchParams.set('code_challenge', challenge);
   authorizeUrl.searchParams.set('code_challenge_method', 'S256');
-  authorizeUrl.searchParams.set('username', username);
-  authorizeUrl.searchParams.set('password', password);
 
   window.location.assign(authorizeUrl.toString());
 }
