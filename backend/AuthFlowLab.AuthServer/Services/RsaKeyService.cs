@@ -27,6 +27,7 @@ public sealed class RsaKeyService
 
     public SigningCredentials CreateSigningCredentials()
     {
+        // 中文注释: 私钥只留在 Auth Server 内部，用来签名 access_token 和 id_token。
         var signingKey = new RsaSecurityKey(_rsa.Value)
         {
             KeyId = KeyId
@@ -37,6 +38,7 @@ public sealed class RsaKeyService
 
     public JsonWebKey CreateJsonWebKey()
     {
+        // 中文注释: 从同一把 RSA key 导出公钥参数，供 JWKS endpoint 返回给 API Server。
         var parameters = _rsa.Value.ExportParameters(includePrivateParameters: false);
 
         return new JsonWebKey

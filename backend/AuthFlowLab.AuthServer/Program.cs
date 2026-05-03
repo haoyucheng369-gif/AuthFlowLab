@@ -28,6 +28,7 @@ builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
+        // 中文注释: Auth Server 用自己的登录 cookie 记录用户是否已经在 IdP 登录。
         options.LoginPath = "/account/login";
         options.Cookie.Name = "AuthFlowLab.Auth";
         options.Cookie.HttpOnly = true;
@@ -48,6 +49,8 @@ app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
+
+// 中文注释: authorize 端点依赖 cookie 认证先还原 User，再决定是否跳登录页或发授权码。
 app.UseAuthentication();
 app.UseAuthorization();
 

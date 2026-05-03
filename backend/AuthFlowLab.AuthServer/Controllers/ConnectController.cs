@@ -102,6 +102,7 @@ public class ConnectController : ControllerBase
             return Unauthorized(new AuthErrorResponse("invalid_grant", "The signed-in user is no longer valid."));
         }
 
+        // 中文注释: scope 同时受用户权限和客户端注册权限约束，OIDC scope 不等同于 API 权限。
         var requestedScopes = ResolveRequestedScopes(scope, user.Scopes);
         if (requestedScopes.Contains("openid", StringComparer.Ordinal) && string.IsNullOrWhiteSpace(nonce))
         {
@@ -114,6 +115,7 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("invalid_scope", "The requested scope is not allowed for this user or client."));
         }
 
+        // 中文注释: 授权码只保存服务端状态，浏览器地址栏只拿到一次性 code 和原始 state。
         var code = _authorizationCodeStore.Create(
             client.ClientId,
             redirectUri,
@@ -179,6 +181,7 @@ public class ConnectController : ControllerBase
                 "The grant_type form field is required."));
         }
 
+        // 中文注释: token endpoint 同时承载服务身份的 client_credentials 和用户登录后的 authorization_code。
         return grantType switch
         {
             ClientCredentialsGrantType => HandleClientCredentials(clientId, clientSecret, scope),
@@ -216,6 +219,7 @@ public class ConnectController : ControllerBase
                 "The requested scope is not allowed for this client."));
         }
 
+        // 中文注释: client_credentials 发的是服务 token，不代表任何用户。
         return Ok(_jwtService.GenerateServiceToken(client.ClientId, requestedScopes));
     }
 
@@ -259,6 +263,7 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("invalid_grant", "The PKCE code_verifier is invalid."));
         }
 
+        // 中文注释: code、redirect_uri、client_id、PKCE 全部校验后，才签发用户 access_token/id_token。
         return Ok(_jwtService.GenerateUserToken(
             authorizationCode.Username,
             authorizationCode.Role,
@@ -322,6 +327,7 @@ public class ConnectController : ControllerBase
         var handler = new JwtSecurityTokenHandler();
         try
         {
+            // 中文注释: UserInfo 复用本 Auth Server 的签名公钥验证 access_token，避免信任未验证的 JWT 内容。
             return handler.ValidateToken(token, new TokenValidationParameters
             {
                 ValidateIssuer = true,

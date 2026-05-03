@@ -72,6 +72,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // 中文注释: API Server 通过 Authority 读取 discovery/JWKS，并验证 Auth Server 签发的 JWT。
         options.Authority = builder.Configuration["Jwt:Authority"] ?? "http://127.0.0.1:5001";
         options.Audience = builder.Configuration["Jwt:Audience"] ?? "api-server";
         options.RequireHttpsMetadata = builder.Configuration.GetValue("Jwt:RequireHttpsMetadata", false);
@@ -96,6 +97,7 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("ContentRead", policy => policy.RequireAssertion(context =>
     {
+        // 中文注释: scope 在 JWT 里是空格分隔字符串，这里拆开后判断是否包含 content.read。
         return context.User.FindAll("scope")
             .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Contains("content.read", StringComparer.Ordinal);
@@ -103,6 +105,7 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("ContentWrite", policy => policy.RequireAssertion(context =>
     {
+        // 中文注释: 写接口要求 content.write，普通 user token 会因为 scope 不足得到 403。
         return context.User.FindAll("scope")
             .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Contains("content.write", StringComparer.Ordinal);
@@ -110,11 +113,13 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("ServiceOnly", policy => policy.RequireAssertion(context =>
     {
+        // 中文注释: 服务专用接口只接受 client_credentials 发出的 token_type=service。
         return context.User.HasClaim(c => c.Type == "token_type" && c.Value == "service");
     }));
 
     options.AddPolicy("ApiKeyOnly", policy =>
     {
+        // 中文注释: API Key 走独立 authentication scheme，不依赖 Bearer JWT。
         policy.AuthenticationSchemes.Add(ApiKeyAuthenticationDefaults.AuthenticationScheme);
         policy.RequireAuthenticatedUser();
         policy.RequireClaim("token_type", "api_key");

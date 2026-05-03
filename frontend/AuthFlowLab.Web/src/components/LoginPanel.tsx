@@ -17,6 +17,7 @@ export function LoginPanel({
       </div>
 
       <p className="muted">
+        {/* 中文注释: 前端只启动 OAuth/OIDC 登录，用户名密码在 Auth Server 登录页输入。 */}
         Sign in on the Auth Server. The SPA only starts the PKCE authorization request.
       </p>
 

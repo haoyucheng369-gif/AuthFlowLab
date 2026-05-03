@@ -280,6 +280,31 @@ npm run build
 - `frontend/AuthFlowLab.Web/package-lock.json` is committed on purpose. This is an application, and the lock file keeps `npm ci` and Docker builds reproducible.
 - Build output such as `bin/`, `obj/`, `node_modules/`, `dist/`, and `*.tsbuildinfo` is ignored.
 
+## Key Code Map
+
+Auth Server:
+
+- `backend/AuthFlowLab.AuthServer/Program.cs` wires CORS, cookie authentication, authorization, Swagger, and controllers.
+- `backend/AuthFlowLab.AuthServer/Controllers/AccountController.cs` owns the IdP login page and HTTP-only login cookie.
+- `backend/AuthFlowLab.AuthServer/Controllers/ConnectController.cs` owns `/connect/authorize`, `/connect/token`, UserInfo, PKCE validation, scope checks, and code exchange.
+- `backend/AuthFlowLab.AuthServer/Controllers/DiscoveryController.cs` exposes OIDC discovery metadata and JWKS.
+- `backend/AuthFlowLab.AuthServer/Services/JwtService.cs` signs user access tokens, service access tokens, and OIDC ID tokens.
+- `backend/AuthFlowLab.AuthServer/Services/RsaKeyService.cs` loads or generates the RSA signing key and exports the public JWKS key.
+- `backend/AuthFlowLab.AuthServer/Services/AuthorizationCodeStore.cs` stores short-lived one-time authorization codes.
+
+API Server:
+
+- `backend/AuthFlowLab.ApiServer/Program.cs` configures JWT bearer validation, API-key authentication, and authorization policies.
+- `backend/AuthFlowLab.ApiServer/Controllers/ContentController.cs` demonstrates anonymous, authenticated, role, scope, service-only, and API-key endpoints.
+- `backend/AuthFlowLab.ApiServer/Authentication/ApiKeyAuthenticationHandler.cs` validates `X-Api-Key` locally and creates claims for the API-key policy.
+
+Frontend:
+
+- `frontend/AuthFlowLab.Web/src/auth.ts` generates PKCE values, starts `/connect/authorize`, exchanges callback `code` for tokens, validates `state`/`nonce`, and stores demo tokens.
+- `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login callback handling, API calls, and local logout.
+- `frontend/AuthFlowLab.Web/src/components/*` contains the login, session, result, and token display panels.
+- `frontend/AuthFlowLab.Web/src/config.ts` centralizes demo URLs, client id, redirect URI, scope, and storage keys.
+
 ## Browser Flow
 
 1. Start Auth Server on `http://127.0.0.1:5001`.
