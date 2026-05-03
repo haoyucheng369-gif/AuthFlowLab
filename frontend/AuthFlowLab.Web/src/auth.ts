@@ -2,6 +2,7 @@ import { authServer, clientId, redirectUri, scope, storageKeys } from './config'
 import type { TokenResponse } from './types';
 
 export async function startLogin() {
+  // 中文注释: SPA 只生成 PKCE 参数并跳转 authorize，不收集也不传递用户密码。
   const verifier = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = await createCodeChallenge(verifier);
   const state = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)));
@@ -11,6 +12,7 @@ export async function startLogin() {
   sessionStorage.setItem(storageKeys.state, state);
   sessionStorage.setItem(storageKeys.nonce, nonce);
 
+  // 中文注释: state/nonce/verifier 留在浏览器本地，回调时用于防重放和校验 id_token。
   const authorizeUrl = new URL(`${authServer}/connect/authorize`);
   authorizeUrl.searchParams.set('response_type', 'code');
   authorizeUrl.searchParams.set('client_id', clientId);
@@ -35,6 +37,7 @@ export async function completeLoginCallback() {
   // 中文注释: 先移除 URL 中的一次性 code，避免 React 开发模式重复执行 effect 时再次换 token。
   window.history.replaceState({}, document.title, '/');
 
+  // 中文注释: state 必须和登录前保存的一致，否则拒绝继续换 token。
   if (!code || !verifier || !expectedState || returnedState !== expectedState) {
     throw new Error('Callback validation failed.');
   }
@@ -47,6 +50,7 @@ export async function completeLoginCallback() {
     code_verifier: verifier
   });
 
+  // 中文注释: authorization code 不能直接当 token 用，必须和 code_verifier 一起提交给 token endpoint。
   const response = await fetch(`${authServer}/connect/token`, {
     method: 'POST',
     headers: {
@@ -61,10 +65,13 @@ export async function completeLoginCallback() {
 
   const tokenResponse = (await response.json()) as TokenResponse;
   const idTokenPayload = tokenResponse.id_token ? decodeJwtPayload(tokenResponse.id_token) : null;
+
+  // 中文注释: nonce 用来确认 id_token 属于这次登录请求，不是旧登录响应被重放。
   if (idTokenPayload?.nonce !== expectedNonce) {
     throw new Error('Nonce validation failed.');
   }
 
+  // 中文注释: demo 为了便于观察把 token 存 localStorage；生产 SPA 需要额外评估 XSS 风险。
   localStorage.setItem(storageKeys.tokens, JSON.stringify(tokenResponse));
   return tokenResponse;
 }
@@ -91,6 +98,7 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
 }
 
 async function createCodeChallenge(verifier: string) {
+  // 中文注释: PKCE S256 = BASE64URL(SHA256(code_verifier))。
   const data = new TextEncoder().encode(verifier);
   const digest = await crypto.subtle.digest('SHA-256', data);
   return base64UrlEncode(new Uint8Array(digest));

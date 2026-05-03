@@ -23,6 +23,7 @@ export function SessionPanel({
       </div>
 
       <dl className="claim-list">
+        {/* 中文注释: 这些字段来自 id_token，表示“谁登录了”，不是 API 授权结果。 */}
         <ClaimItem label="Subject" value={stringClaim(idTokenPayload?.sub)} />
         <ClaimItem label="Name" value={stringClaim(idTokenPayload?.name)} />
         <ClaimItem label="Audience" value={stringClaim(idTokenPayload?.aud)} />
@@ -30,6 +31,7 @@ export function SessionPanel({
       </dl>
 
       <div className="button-row">
+        {/* 中文注释: 下面两个请求都会携带 access_token，浏览器会因为 Authorization header 先发 CORS preflight。 */}
         <button type="button" className="btn btn-primary" onClick={onCallApi}>
           Call API
         </button>

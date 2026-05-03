@@ -24,6 +24,7 @@ public sealed class AccountController : Controller
     [HttpGet("login")]
     public IActionResult Login([FromQuery] string? returnUrl = null)
     {
+        // 中文注释: 登录页由 Auth Server 自己展示，SPA 不再收集或传递用户密码。
         return Content(RenderLoginPage(returnUrl, null), "text/html; charset=utf-8");
     }
 
@@ -55,6 +56,7 @@ public sealed class AccountController : Controller
             claims.Add(new Claim("scope", scope));
         }
 
+        // 中文注释: 登录成功只写入 HttpOnly cookie；真正给 SPA 的 token 仍然要走 /connect/token。
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await HttpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
@@ -128,6 +130,7 @@ public sealed class AccountController : Controller
 
     private string SanitizeReturnUrl(string? returnUrl)
     {
+        // 中文注释: 只允许回跳到本站路径，避免登录后被恶意 returnUrl 带到外部网站。
         return Url.IsLocalUrl(returnUrl) ? returnUrl! : "/";
     }
 }

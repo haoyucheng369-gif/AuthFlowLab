@@ -13,6 +13,7 @@ export function App() {
   const [result, setResult] = useState<CallResult | null>(null);
 
   const idTokenPayload = useMemo(() => {
+    // 中文注释: id_token 只用于前端展示登录用户信息，API 调用使用 access_token。
     return tokens?.id_token ? decodeJwtPayload(tokens.id_token) : null;
   }, [tokens]);
 
@@ -47,11 +48,14 @@ export function App() {
         Authorization: `Bearer ${tokens.access_token}`
       }
     });
+
+    // 中文注释: 这里展示 API 返回结果，方便观察 200/401/403 等授权效果。
     const body = await response.text();
     setResult({ label, status: response.status, body });
   }
 
   function logout() {
+    // 中文注释: 这里只清理 SPA 本地 token；Auth Server 的登录 cookie 可通过 /account/logout 扩展处理。
     clearSession();
     setTokens(null);
     setResult(null);
