@@ -1,15 +1,30 @@
 using System.Security.Claims;
 using AuthFlowLab.ApiServer.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
+
+const string FrontendCorsPolicy = "Frontend";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        var origins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? ["http://127.0.0.1:5173"];
+
+        policy.WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// 生成 OpenAPI JSON 和 Swagger UI，并声明受保护接口需要 Bearer JWT。
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -53,8 +68,6 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Authentication：验证 Bearer token 的签名、issuer、audience 和过期时间。
-// 这里使用 Authority，JwtBearer 会读取 AuthServer 的 discovery document 和 JWKS 公钥。
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -76,14 +89,11 @@ builder.Services
         ApiKeyAuthenticationDefaults.AuthenticationScheme,
         options =>
         {
-            // Demo API keys. Production keys should live in Secret Manager, env vars, or a key vault.
             builder.Configuration.GetSection("ApiKeys").Bind(options);
         });
 
-// Authorization：token 已可信后，根据 claims 判断能不能访问具体资源。
 builder.Services.AddAuthorization(options =>
 {
-    // content.read 使用 OAuth2 scope claim 控制，多个 scope 用空格分隔。
     options.AddPolicy("ContentRead", policy => policy.RequireAssertion(context =>
     {
         return context.User.FindAll("scope")
@@ -91,7 +101,6 @@ builder.Services.AddAuthorization(options =>
             .Contains("content.read", StringComparer.Ordinal);
     }));
 
-    // content.write 是更细粒度的写权限，用于验证 read/write scope 的差异。
     options.AddPolicy("ContentWrite", policy => policy.RequireAssertion(context =>
     {
         return context.User.FindAll("scope")
@@ -99,13 +108,11 @@ builder.Services.AddAuthorization(options =>
             .Contains("content.write", StringComparer.Ordinal);
     }));
 
-    // ServiceOnly 通过自定义 token_type claim 区分 service token 和 user token。
     options.AddPolicy("ServiceOnly", policy => policy.RequireAssertion(context =>
     {
         return context.User.HasClaim(c => c.Type == "token_type" && c.Value == "service");
     }));
 
-    // ApiKeyOnly uses its own scheme and authenticates requests from the X-Api-Key header.
     options.AddPolicy("ApiKeyOnly", policy =>
     {
         policy.AuthenticationSchemes.Add(ApiKeyAuthenticationDefaults.AuthenticationScheme);
@@ -116,13 +123,12 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// Swagger UI 读取 /swagger/v1/swagger.json，提供浏览器里的 API 调试界面。
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+app.UseCors(FrontendCorsPolicy);
 
-// 中间件顺序很重要：先 Authentication 解析并验证 token，再 Authorization 执行策略。
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -130,5 +136,4 @@ app.MapControllers();
 
 app.Run();
 
-// WebApplicationFactory 集成测试需要可引用的 Program 类型。
 public partial class Program;
