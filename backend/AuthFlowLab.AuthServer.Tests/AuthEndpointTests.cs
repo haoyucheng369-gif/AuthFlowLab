@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
@@ -131,6 +132,30 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Discovery_ReturnsMetadataForClientCredentials()
+    {
+        var document = await _client.GetFromJsonAsync<JsonElement>("/.well-known/openid-configuration");
+
+        Assert.Equal("http://auth-flow-lab.test", document.GetProperty("issuer").GetString());
+        Assert.Equal("http://auth-flow-lab.test/connect/token", document.GetProperty("token_endpoint").GetString());
+        Assert.Equal("http://auth-flow-lab.test/.well-known/jwks.json", document.GetProperty("jwks_uri").GetString());
+        Assert.Contains("client_credentials", document.GetProperty("grant_types_supported").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public async Task Jwks_ReturnsPublicSigningKey()
+    {
+        var document = await _client.GetFromJsonAsync<JsonElement>("/.well-known/jwks.json");
+        var key = document.GetProperty("keys").EnumerateArray().Single();
+
+        Assert.Equal("auth-flow-lab-test-key", key.GetProperty("kid").GetString());
+        Assert.Equal("RSA", key.GetProperty("kty").GetString());
+        Assert.Equal("RS256", key.GetProperty("alg").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(key.GetProperty("n").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(key.GetProperty("e").GetString()));
+    }
 }
 
 public sealed class AuthServerFactory : WebApplicationFactory<Program>
@@ -152,6 +177,8 @@ public sealed class AuthServerFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:PrivateKeyPath"] = _privateKeyPath,
+                ["Jwt:Issuer"] = "http://auth-flow-lab.test",
+                ["Jwt:KeyId"] = "auth-flow-lab-test-key",
                 ["Auth:AccessTokenMinutes"] = "10",
                 ["Auth:Users:0:Username"] = "test-admin",
                 ["Auth:Users:0:Password"] = "admin123",

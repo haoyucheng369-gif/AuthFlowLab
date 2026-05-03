@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
 using Microsoft.IdentityModel.Tokens;
@@ -35,30 +34,20 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var publicKeyPath = builder.Configuration["Jwt:PublicKeyPath"] ?? "../../keys/public.key";
-publicKeyPath = Path.IsPathRooted(publicKeyPath)
-    ? publicKeyPath
-    : Path.GetFullPath(publicKeyPath, builder.Environment.ContentRootPath);
-
-var publicKey = File.ReadAllText(publicKeyPath);
-var rsa = RSA.Create();
-rsa.ImportFromPem(publicKey);
-var signingKey = new RsaSecurityKey(rsa);
-
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.Authority = builder.Configuration["Jwt:Authority"] ?? "http://127.0.0.1:5001";
+        options.Audience = builder.Configuration["Jwt:Audience"] ?? "api-server";
+        options.RequireHttpsMetadata = builder.Configuration.GetValue("Jwt:RequireHttpsMetadata", false);
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "auth-flow-lab",
+            ValidIssuer = (builder.Configuration["Jwt:Authority"] ?? "http://127.0.0.1:5001").TrimEnd('/'),
             ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "api-server",
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = signingKey,
-            TryAllIssuerSigningKeys = true,
             RoleClaimType = ClaimTypes.Role
         };
     });

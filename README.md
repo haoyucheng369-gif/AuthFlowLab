@@ -5,7 +5,8 @@ A minimal authentication and authorization lab for learning JWT bearer validatio
 ## Current Scope
 
 - User login issues JWT access tokens.
-- Client credentials-style service token issuing is available through a simplified JSON endpoint.
+- Client credentials uses the OAuth2-style `/connect/token` endpoint.
+- Auth Server exposes OpenID Connect discovery metadata and JWKS.
 - API Server validates JWTs signed by Auth Server.
 - API endpoints demonstrate anonymous, authenticated, role, scope, and service-only authorization.
 
@@ -16,7 +17,8 @@ Frontend -> Auth Server -> API -> Database
 For the current lab stage:
 
 - Auth Server signs JWTs with `keys/private.key`.
-- API Server validates JWT signatures with `keys/public.key`.
+- Auth Server exposes its public signing key through JWKS.
+- API Server uses `Jwt:Authority` to load discovery metadata and JWKS automatically.
 - User accounts, client credentials, allowed scopes, and token lifetime are configured in `AuthFlowLab.AuthServer/appsettings.json`.
 
 ## Run Locally
@@ -66,7 +68,7 @@ Response:
   "access_token": "<jwt>",
   "token_type": "Bearer",
   "expires_in": 1800,
-  "scope": "content.read content.write"
+  "scope": "content.read"
 }
 ```
 
@@ -94,6 +96,20 @@ grant_type=client_credentials
 The response shape is the same as login. Invalid clients return `invalid_client`; unsupported grant types return `unsupported_grant_type`; disallowed scopes return `invalid_scope`.
 
 The old lab-only `/auth/client-token` endpoint has been removed. Service tokens now use the OAuth2-style `/connect/token` endpoint.
+
+### Discovery And JWKS
+
+```http
+GET http://127.0.0.1:5001/.well-known/openid-configuration
+```
+
+The discovery document includes the issuer, token endpoint, JWKS URI, supported grant types, and supported scopes.
+
+```http
+GET http://127.0.0.1:5001/.well-known/jwks.json
+```
+
+The JWKS document exposes the RSA public key used by API servers to verify JWT signatures.
 
 ## API Server Endpoints
 

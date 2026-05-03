@@ -1,5 +1,13 @@
 @AuthServer = http://127.0.0.1:5001
 
+### Discovery metadata
+GET {{AuthServer}}/.well-known/openid-configuration
+Accept: application/json
+
+### JWKS public signing keys
+GET {{AuthServer}}/.well-known/jwks.json
+Accept: application/json
+
 ### Login as a normal user
 # @name userLogin
 POST {{AuthServer}}/auth/login

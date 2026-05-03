@@ -1,9 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using AuthFlowLab.AuthServer.Models;
 using AuthFlowLab.AuthServer.Options;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -12,17 +10,17 @@ namespace AuthFlowLab.AuthServer.Services;
 public class JwtService
 {
     private readonly IConfiguration _configuration;
-    private readonly IWebHostEnvironment _environment;
     private readonly AuthOptions _authOptions;
+    private readonly RsaKeyService _rsaKeyService;
 
     public JwtService(
         IConfiguration configuration,
-        IWebHostEnvironment environment,
-        IOptions<AuthOptions> authOptions)
+        IOptions<AuthOptions> authOptions,
+        RsaKeyService rsaKeyService)
     {
         _configuration = configuration;
-        _environment = environment;
         _authOptions = authOptions.Value;
+        _rsaKeyService = rsaKeyService;
     }
 
     public TokenResponse GenerateUserToken(string username, string role, IEnumerable<string> scopes)
@@ -63,20 +61,7 @@ public class JwtService
         var issuer = _configuration["Jwt:Issuer"] ?? "auth-flow-lab";
         var audience = _configuration["Jwt:Audience"] ?? "api-server";
         var expiresIn = _authOptions.AccessTokenMinutes * 60;
-        var privateKeyPath = _configuration["Jwt:PrivateKeyPath"]
-            ?? throw new InvalidOperationException("Private key path is missing.");
-
-        privateKeyPath = Path.IsPathRooted(privateKeyPath)
-            ? privateKeyPath
-            : Path.GetFullPath(privateKeyPath, _environment.ContentRootPath);
-
-        var privateKey = File.ReadAllText(privateKeyPath);
-
-        var rsa = RSA.Create();
-        rsa.ImportFromPem(privateKey);
-
-        var signingKey = new RsaSecurityKey(rsa);
-        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256);
+        var credentials = _rsaKeyService.CreateSigningCredentials();
 
         var token = new JwtSecurityToken(
             issuer: issuer,

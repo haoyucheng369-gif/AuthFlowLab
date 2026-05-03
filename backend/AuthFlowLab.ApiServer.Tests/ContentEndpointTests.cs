@@ -4,8 +4,12 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AuthFlowLab.ApiServer.Tests;
@@ -113,13 +117,9 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
 public sealed class ApiServerFactory : WebApplicationFactory<Program>
 {
     private readonly RSA _rsa = RSA.Create(2048);
-    private readonly string _publicKeyPath;
 
     public ApiServerFactory()
     {
-        _publicKeyPath = Path.Combine(Path.GetTempPath(), $"auth-flow-lab-test-{Guid.NewGuid():N}.key");
-        File.WriteAllText(_publicKeyPath, _rsa.ExportRSAPublicKeyPem());
-        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _publicKeyPath);
     }
 
     public string CreateToken(string subject, string tokenType, string? role = null, string? scope = null)
@@ -141,11 +141,14 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
         }
 
         var token = new JwtSecurityToken(
-            issuer: "auth-flow-lab",
+            issuer: "http://auth-flow-lab.test",
             audience: "api-server",
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(10),
-            signingCredentials: new SigningCredentials(new RsaSecurityKey(_rsa), SecurityAlgorithms.RsaSha256));
+            signingCredentials: new SigningCredentials(new RsaSecurityKey(_rsa)
+            {
+                KeyId = "test-key"
+            }, SecurityAlgorithms.RsaSha256));
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
@@ -157,7 +160,29 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:PublicKeyPath"] = _publicKeyPath
+                ["Jwt:Authority"] = "http://auth-flow-lab.test",
+                ["Jwt:Audience"] = "api-server",
+                ["Jwt:RequireHttpsMetadata"] = "false"
+            });
+        });
+
+        builder.ConfigureServices(services =>
+        {
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                var signingKey = new RsaSecurityKey(_rsa)
+                {
+                    KeyId = "test-key"
+                };
+
+                options.Configuration = new OpenIdConnectConfiguration
+                {
+                    Issuer = "http://auth-flow-lab.test"
+                };
+
+                options.Configuration.SigningKeys.Add(signingKey);
+                options.TokenValidationParameters.IssuerSigningKey = signingKey;
+                options.TokenValidationParameters.TryAllIssuerSigningKeys = true;
             });
         });
     }
