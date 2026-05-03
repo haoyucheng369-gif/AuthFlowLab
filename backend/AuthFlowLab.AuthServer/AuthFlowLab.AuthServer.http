@@ -9,6 +9,7 @@ GET {{AuthServer}}/.well-known/jwks.json
 Accept: application/json
 
 ### Login as a normal user
+# 用户登录：返回 user token，scope 只有 content.read。
 # @name userLogin
 POST {{AuthServer}}/auth/login
 Content-Type: application/json
@@ -20,6 +21,7 @@ Accept: application/json
 }
 
 ### Login as admin
+# 管理员登录：返回 user token，role=Admin，scope 包含 content.write。
 # @name adminLogin
 POST {{AuthServer}}/auth/login
 Content-Type: application/json
@@ -31,6 +33,7 @@ Accept: application/json
 }
 
 ### Issue a service token with client_credentials
+# OAuth2 token endpoint：使用 form-urlencoded 的 client_credentials 换 service token。
 # @name clientToken
 POST {{AuthServer}}/connect/token
 Content-Type: application/x-www-form-urlencoded
@@ -42,6 +45,7 @@ grant_type=client_credentials
 &scope=content.read content.write
 
 ### Invalid login returns an OAuth-style error
+# 认证失败示例：用户名密码错误返回 invalid_grant。
 POST {{AuthServer}}/auth/login
 Content-Type: application/json
 Accept: application/json

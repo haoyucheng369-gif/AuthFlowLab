@@ -2,30 +2,36 @@
 @AccessToken = paste-token-here
 
 ### Public content does not require a token
+# 匿名接口：不走 Bearer token 验证。
 GET {{ApiServer}}/content/public
 Accept: application/json
 
 ### Authenticated user or service
+# 基础认证：token 有效即可。
 GET {{ApiServer}}/content/user
 Accept: application/json
 Authorization: Bearer {{AccessToken}}
 
 ### Admin role only
+# 角色授权：需要 role=Admin。
 GET {{ApiServer}}/content/admin
 Accept: application/json
 Authorization: Bearer {{AccessToken}}
 
 ### Requires content.read scope
+# scope 授权：需要 content.read。
 GET {{ApiServer}}/content/read
 Accept: application/json
 Authorization: Bearer {{AccessToken}}
 
 ### Requires content.write scope
+# scope 授权：需要 content.write。
 POST {{ApiServer}}/content/write
 Accept: application/json
 Authorization: Bearer {{AccessToken}}
 
 ### Requires token_type=service
+# 自定义 claim 授权：需要 token_type=service。
 GET {{ApiServer}}/content/service
 Accept: application/json
 Authorization: Bearer {{AccessToken}}

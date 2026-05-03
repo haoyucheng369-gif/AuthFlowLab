@@ -2,6 +2,7 @@
 @ApiServer = http://127.0.0.1:5002
 
 ### User login
+# 用户认证：AuthServer 校验用户名密码，成功后用私钥签发 user token。
 # @name userLogin
 POST {{AuthServer}}/auth/login
 Content-Type: application/json
@@ -13,21 +14,25 @@ Accept: application/json
 }
 
 ### User token can access authenticated content
+# 基础认证：只要 Bearer token 有效就可以访问。
 GET {{ApiServer}}/content/user
 Accept: application/json
 Authorization: Bearer {{userLogin.response.body.$.access_token}}
 
 ### User token can access content.read policy
+# scope 授权：user token 里包含 content.read。
 GET {{ApiServer}}/content/read
 Accept: application/json
 Authorization: Bearer {{userLogin.response.body.$.access_token}}
 
 ### Normal user cannot access content.write policy
+# 权限不足示例：user token 没有 content.write，预期返回 403。
 POST {{ApiServer}}/content/write
 Accept: application/json
 Authorization: Bearer {{userLogin.response.body.$.access_token}}
 
 ### Admin login
+# 角色示例：admin token 会带 role=Admin 和 content.write scope。
 # @name adminLogin
 POST {{AuthServer}}/auth/login
 Content-Type: application/json
@@ -39,16 +44,19 @@ Accept: application/json
 }
 
 ### Admin token can access admin content
+# 角色授权：ApiServer 检查 role=Admin。
 GET {{ApiServer}}/content/admin
 Accept: application/json
 Authorization: Bearer {{adminLogin.response.body.$.access_token}}
 
 ### Admin token can access content.write policy
+# 写权限授权：ApiServer 检查 scope 是否包含 content.write。
 POST {{ApiServer}}/content/write
 Accept: application/json
 Authorization: Bearer {{adminLogin.response.body.$.access_token}}
 
 ### Client credentials-style service token
+# OAuth2 client_credentials：系统用 client_id/client_secret 换 service token。
 # @name serviceToken
 POST {{AuthServer}}/connect/token
 Content-Type: application/x-www-form-urlencoded
@@ -60,16 +68,19 @@ grant_type=client_credentials
 &scope=content.read content.write
 
 ### Service token can access service-only content
+# 服务调用授权：ApiServer 检查 token_type=service。
 GET {{ApiServer}}/content/service
 Accept: application/json
 Authorization: Bearer {{serviceToken.response.body.$.access_token}}
 
 ### Service token can also access content.read
+# service token 也可以按 scope 访问普通资源。
 GET {{ApiServer}}/content/read
 Accept: application/json
 Authorization: Bearer {{serviceToken.response.body.$.access_token}}
 
 ### Service token can also access content.write
+# service token 拥有 content.write，所以可以访问写接口。
 POST {{ApiServer}}/content/write
 Accept: application/json
 Authorization: Bearer {{serviceToken.response.body.$.access_token}}
