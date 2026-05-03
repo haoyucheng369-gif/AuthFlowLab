@@ -22,17 +22,16 @@ Accept: application/json
   "password": "admin123"
 }
 
-### Issue a service token
+### Issue a service token with client_credentials
 # @name clientToken
-POST {{AuthServer}}/auth/client-token
-Content-Type: application/json
+POST {{AuthServer}}/connect/token
+Content-Type: application/x-www-form-urlencoded
 Accept: application/json
 
-{
-  "clientId": "worker-service",
-  "clientSecret": "worker-secret",
-  "scope": "content.read content.write"
-}
+grant_type=client_credentials
+&client_id=worker-service
+&client_secret=worker-secret
+&scope=content.read content.write
 
 ### Invalid login returns an OAuth-style error
 POST {{AuthServer}}/auth/login

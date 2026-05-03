@@ -79,20 +79,21 @@ Invalid credentials return:
 }
 ```
 
-### Service Token
+### Client Credentials Token
 
 ```http
-POST http://127.0.0.1:5001/auth/client-token
-Content-Type: application/json
+POST http://127.0.0.1:5001/connect/token
+Content-Type: application/x-www-form-urlencoded
 
-{
-  "clientId": "worker-service",
-  "clientSecret": "worker-secret",
-  "scope": "content.read"
-}
+grant_type=client_credentials
+&client_id=worker-service
+&client_secret=worker-secret
+&scope=content.read content.write
 ```
 
-The response shape is the same as login. Invalid clients return `invalid_client`; disallowed scopes return `invalid_scope`.
+The response shape is the same as login. Invalid clients return `invalid_client`; unsupported grant types return `unsupported_grant_type`; disallowed scopes return `invalid_scope`.
+
+The old lab-only `/auth/client-token` endpoint has been removed. Service tokens now use the OAuth2-style `/connect/token` endpoint.
 
 ## API Server Endpoints
 

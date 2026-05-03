@@ -35,30 +35,4 @@ public class AuthController : ControllerBase
         return Ok(_jwtService.GenerateUserToken(user.Username, user.Role, user.Scopes));
     }
 
-    [HttpPost("client-token")]
-    public IActionResult ClientToken(ClientTokenRequest request)
-    {
-        var client = _authOptions.Clients.FirstOrDefault(client =>
-            client.ClientId == request.ClientId && client.ClientSecret == request.ClientSecret);
-
-        if (client is null)
-        {
-            return Unauthorized(new AuthErrorResponse(
-                "invalid_client",
-                "The client id or secret is invalid."));
-        }
-
-        var requestedScopes = string.IsNullOrWhiteSpace(request.Scope)
-            ? client.Scopes
-            : request.Scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-
-        if (requestedScopes.Any(scope => !client.Scopes.Contains(scope, StringComparer.Ordinal)))
-        {
-            return BadRequest(new AuthErrorResponse(
-                "invalid_scope",
-                "The requested scope is not allowed for this client."));
-        }
-
-        return Ok(_jwtService.GenerateServiceToken(client.ClientId, requestedScopes));
-    }
 }

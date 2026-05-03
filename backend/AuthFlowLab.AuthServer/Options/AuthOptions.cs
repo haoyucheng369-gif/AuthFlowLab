@@ -26,5 +26,7 @@ public sealed class AuthClient
 
     public string ClientSecret { get; init; } = "";
 
+    public List<string> AllowedGrantTypes { get; init; } = [];
+
     public List<string> Scopes { get; init; } = [];
 }

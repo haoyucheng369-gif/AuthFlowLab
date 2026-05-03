@@ -50,15 +50,14 @@ Authorization: Bearer {{adminLogin.response.body.$.access_token}}
 
 ### Client credentials-style service token
 # @name serviceToken
-POST {{AuthServer}}/auth/client-token
-Content-Type: application/json
+POST {{AuthServer}}/connect/token
+Content-Type: application/x-www-form-urlencoded
 Accept: application/json
 
-{
-  "clientId": "worker-service",
-  "clientSecret": "worker-secret",
-  "scope": "content.read content.write"
-}
+grant_type=client_credentials
+&client_id=worker-service
+&client_secret=worker-secret
+&scope=content.read content.write
 
 ### Service token can access service-only content
 GET {{ApiServer}}/content/service

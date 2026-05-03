@@ -67,14 +67,15 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     }
 
     [Fact]
-    public async Task ClientToken_WithAllowedScope_Returns_ServiceToken()
+    public async Task Token_WithClientCredentials_Returns_ServiceToken()
     {
-        var response = await _client.PostAsJsonAsync("/auth/client-token", new
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            clientId = "worker-service",
-            clientSecret = "worker-secret",
-            scope = "content.read content.write"
-        });
+            ["grant_type"] = "client_credentials",
+            ["client_id"] = "worker-service",
+            ["client_secret"] = "worker-secret",
+            ["scope"] = "content.read content.write"
+        }));
 
         response.EnsureSuccessStatusCode();
         var token = await response.Content.ReadFromJsonAsync<TokenResponse>();
@@ -86,19 +87,49 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     }
 
     [Fact]
-    public async Task ClientToken_WithDisallowedScope_ReturnsInvalidScope()
+    public async Task Token_WithDisallowedScope_ReturnsInvalidScope()
     {
-        var response = await _client.PostAsJsonAsync("/auth/client-token", new
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            clientId = "worker-service",
-            clientSecret = "worker-secret",
-            scope = "admin"
-        });
+            ["grant_type"] = "client_credentials",
+            ["client_id"] = "worker-service",
+            ["client_secret"] = "worker-secret",
+            ["scope"] = "admin"
+        }));
 
         var error = await response.Content.ReadFromJsonAsync<AuthErrorResponse>();
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("invalid_scope", error?.Error);
+    }
+
+    [Fact]
+    public async Task Token_WithUnsupportedGrantType_ReturnsUnsupportedGrantType()
+    {
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "password",
+            ["client_id"] = "worker-service",
+            ["client_secret"] = "worker-secret"
+        }));
+
+        var error = await response.Content.ReadFromJsonAsync<AuthErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("unsupported_grant_type", error?.Error);
+    }
+
+    [Fact]
+    public async Task DeprecatedClientTokenEndpoint_ReturnsNotFound()
+    {
+        var response = await _client.PostAsJsonAsync("/auth/client-token", new
+        {
+            clientId = "worker-service",
+            clientSecret = "worker-secret",
+            scope = "content.read"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }
 
@@ -133,6 +164,7 @@ public sealed class AuthServerFactory : WebApplicationFactory<Program>
                 ["Auth:Users:1:Scopes:0"] = "content.read",
                 ["Auth:Clients:0:ClientId"] = "worker-service",
                 ["Auth:Clients:0:ClientSecret"] = "worker-secret",
+                ["Auth:Clients:0:AllowedGrantTypes:0"] = "client_credentials",
                 ["Auth:Clients:0:Scopes:0"] = "content.read",
                 ["Auth:Clients:0:Scopes:1"] = "content.write"
             });
