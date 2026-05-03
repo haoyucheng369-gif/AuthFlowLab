@@ -6,6 +6,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthFlowLab.ApiServer", "Au
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthFlowLab.AuthServer", "AuthFlowLab.AuthServer\AuthFlowLab.AuthServer.csproj", "{182B1F9D-8A5E-4C0A-96A8-4FC92E15B1D8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthFlowLab.AuthServer.Tests", "AuthFlowLab.AuthServer.Tests\AuthFlowLab.AuthServer.Tests.csproj", "{A37DFDBE-2E12-40A5-BB44-EB7D55DF99A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthFlowLab.ApiServer.Tests", "AuthFlowLab.ApiServer.Tests\AuthFlowLab.ApiServer.Tests.csproj", "{BBCFFA6A-D319-485F-A63A-9DD43B7F5289}"
+EndProject
 Global
     GlobalSection(SolutionConfigurationPlatforms) = preSolution
         Debug|Any CPU = Debug|Any CPU
@@ -20,5 +24,13 @@ Global
         {182B1F9D-8A5E-4C0A-96A8-4FC92E15B1D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {182B1F9D-8A5E-4C0A-96A8-4FC92E15B1D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {182B1F9D-8A5E-4C0A-96A8-4FC92E15B1D8}.Release|Any CPU.Build.0 = Release|Any CPU
+        {A37DFDBE-2E12-40A5-BB44-EB7D55DF99A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A37DFDBE-2E12-40A5-BB44-EB7D55DF99A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {A37DFDBE-2E12-40A5-BB44-EB7D55DF99A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {A37DFDBE-2E12-40A5-BB44-EB7D55DF99A2}.Release|Any CPU.Build.0 = Release|Any CPU
+        {BBCFFA6A-D319-485F-A63A-9DD43B7F5289}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {BBCFFA6A-D319-485F-A63A-9DD43B7F5289}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {BBCFFA6A-D319-485F-A63A-9DD43B7F5289}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {BBCFFA6A-D319-485F-A63A-9DD43B7F5289}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
 EndGlobal

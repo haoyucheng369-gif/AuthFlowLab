@@ -1,6 +1,28 @@
-@AuthFlowLab.ApiServer_HostAddress = http://localhost:5083
+@ApiServer = http://127.0.0.1:5002
+@AccessToken = paste-token-here
 
-GET {{AuthFlowLab.ApiServer_HostAddress}}/weatherforecast/
+### Public content does not require a token
+GET {{ApiServer}}/content/public
 Accept: application/json
+
+### Authenticated user or service
+GET {{ApiServer}}/content/user
+Accept: application/json
+Authorization: Bearer {{AccessToken}}
+
+### Admin role only
+GET {{ApiServer}}/content/admin
+Accept: application/json
+Authorization: Bearer {{AccessToken}}
+
+### Requires content.read scope
+GET {{ApiServer}}/content/read
+Accept: application/json
+Authorization: Bearer {{AccessToken}}
+
+### Requires token_type=service
+GET {{ApiServer}}/content/service
+Accept: application/json
+Authorization: Bearer {{AccessToken}}
 
 ###

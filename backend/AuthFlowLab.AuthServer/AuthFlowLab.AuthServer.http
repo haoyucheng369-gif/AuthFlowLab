@@ -1,6 +1,47 @@
-@AuthFlowLab.AuthServer_HostAddress = http://localhost:5180
+@AuthServer = http://127.0.0.1:5001
 
-GET {{AuthFlowLab.AuthServer_HostAddress}}/weatherforecast/
+### Login as a normal user
+# @name userLogin
+POST {{AuthServer}}/auth/login
+Content-Type: application/json
 Accept: application/json
+
+{
+  "username": "user",
+  "password": "user123"
+}
+
+### Login as admin
+# @name adminLogin
+POST {{AuthServer}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Issue a service token
+# @name clientToken
+POST {{AuthServer}}/auth/client-token
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientId": "worker-service",
+  "clientSecret": "worker-secret",
+  "scope": "content.read"
+}
+
+### Invalid login returns an OAuth-style error
+POST {{AuthServer}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "user",
+  "password": "wrong"
+}
 
 ###

@@ -1,6 +1,8 @@
-﻿using AuthFlowLab.AuthServer.Models;
+using AuthFlowLab.AuthServer.Models;
+using AuthFlowLab.AuthServer.Options;
 using AuthFlowLab.AuthServer.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace AuthFlowLab.AuthServer.Controllers;
 
@@ -9,48 +11,54 @@ namespace AuthFlowLab.AuthServer.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly JwtService _jwtService;
+    private readonly AuthOptions _authOptions;
 
-    public AuthController(JwtService jwtService)
+    public AuthController(JwtService jwtService, IOptions<AuthOptions> authOptions)
     {
         _jwtService = jwtService;
+        _authOptions = authOptions.Value;
     }
 
     [HttpPost("login")]
     public IActionResult Login(LoginRequest request)
     {
-        if (request.Username == "admin" && request.Password == "admin123")
+        var user = _authOptions.Users.FirstOrDefault(user =>
+            user.Username == request.Username && user.Password == request.Password);
+
+        if (user is null)
         {
-            return Ok(new
-            {
-                access_token = _jwtService.GenerateUserToken("admin", "Admin"),
-                token_type = "Bearer"
-            });
+            return Unauthorized(new AuthErrorResponse(
+                "invalid_grant",
+                "The username or password is invalid."));
         }
 
-        if (request.Username == "user" && request.Password == "user123")
-        {
-            return Ok(new
-            {
-                access_token = _jwtService.GenerateUserToken("user", "User"),
-                token_type = "Bearer"
-            });
-        }
-
-        return Unauthorized("Invalid username or password");
+        return Ok(_jwtService.GenerateUserToken(user.Username, user.Role, user.Scopes));
     }
 
     [HttpPost("client-token")]
     public IActionResult ClientToken(ClientTokenRequest request)
     {
-        if (request.ClientId == "worker-service" && request.ClientSecret == "worker-secret")
+        var client = _authOptions.Clients.FirstOrDefault(client =>
+            client.ClientId == request.ClientId && client.ClientSecret == request.ClientSecret);
+
+        if (client is null)
         {
-            return Ok(new
-            {
-                access_token = _jwtService.GenerateServiceToken("worker-service", "content.read"),
-                token_type = "Bearer"
-            });
+            return Unauthorized(new AuthErrorResponse(
+                "invalid_client",
+                "The client id or secret is invalid."));
         }
 
-        return Unauthorized();
+        var requestedScopes = string.IsNullOrWhiteSpace(request.Scope)
+            ? client.Scopes
+            : request.Scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        if (requestedScopes.Any(scope => !client.Scopes.Contains(scope, StringComparer.Ordinal)))
+        {
+            return BadRequest(new AuthErrorResponse(
+                "invalid_scope",
+                "The requested scope is not allowed for this client."));
+        }
+
+        return Ok(_jwtService.GenerateServiceToken(client.ClientId, requestedScopes));
     }
 }

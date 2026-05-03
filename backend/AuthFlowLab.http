@@ -1,0 +1,61 @@
+@AuthServer = http://127.0.0.1:5001
+@ApiServer = http://127.0.0.1:5002
+
+### User login
+# @name userLogin
+POST {{AuthServer}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "user",
+  "password": "user123"
+}
+
+### User token can access authenticated content
+GET {{ApiServer}}/content/user
+Accept: application/json
+Authorization: Bearer {{userLogin.response.body.$.access_token}}
+
+### User token can access content.read policy
+GET {{ApiServer}}/content/read
+Accept: application/json
+Authorization: Bearer {{userLogin.response.body.$.access_token}}
+
+### Admin login
+# @name adminLogin
+POST {{AuthServer}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Admin token can access admin content
+GET {{ApiServer}}/content/admin
+Accept: application/json
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+
+### Client credentials-style service token
+# @name serviceToken
+POST {{AuthServer}}/auth/client-token
+Content-Type: application/json
+Accept: application/json
+
+{
+  "clientId": "worker-service",
+  "clientSecret": "worker-secret",
+  "scope": "content.read"
+}
+
+### Service token can access service-only content
+GET {{ApiServer}}/content/service
+Accept: application/json
+Authorization: Bearer {{serviceToken.response.body.$.access_token}}
+
+### Service token can also access content.read
+GET {{ApiServer}}/content/read
+Accept: application/json
+Authorization: Bearer {{serviceToken.response.body.$.access_token}}

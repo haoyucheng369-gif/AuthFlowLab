@@ -30,13 +30,20 @@ builder.Services
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = signingKey,
+            TryAllIssuerSigningKeys = true,
             RoleClaimType = ClaimTypes.Role
         };
     });
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("ContentRead", policy => policy.RequireClaim("scope", "content.read"));
+    options.AddPolicy("ContentRead", policy => policy.RequireAssertion(context =>
+    {
+        return context.User.FindAll("scope")
+            .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Contains("content.read", StringComparer.Ordinal);
+    }));
+
     options.AddPolicy("ServiceOnly", policy => policy.RequireAssertion(context =>
     {
         return context.User.HasClaim(c => c.Type == "token_type" && c.Value == "service");
@@ -52,3 +59,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;
