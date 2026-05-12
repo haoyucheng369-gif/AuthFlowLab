@@ -109,11 +109,15 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("invalid_request", "OIDC requests with openid scope require nonce."));
         }
 
-        if (requestedScopes.Any(requestedScope => !IsScopeAllowedForUser(user, requestedScope)) ||
-            requestedScopes.Any(requestedScope => !client.Scopes.Contains(requestedScope, StringComparer.Ordinal)))
+        var unknownScopes = requestedScopes
+            .Where(requestedScope => !IsKnownUserScope(requestedScope) && !client.Scopes.Contains(requestedScope, StringComparer.Ordinal))
+            .ToList();
+        if (unknownScopes.Count > 0)
         {
             return BadRequest(new AuthErrorResponse("invalid_scope", "The requested scope is not allowed for this user or client."));
         }
+
+        var grantedScopes = ResolveGrantedUserScopes(requestedScopes, user, client);
 
         // 中文注释: 授权码只保存服务端状态，浏览器地址栏只拿到一次性 code 和原始 state。
         var code = _authorizationCodeStore.Create(
@@ -121,7 +125,7 @@ public class ConnectController : ControllerBase
             redirectUri,
             user.Username,
             user.Role,
-            requestedScopes,
+            grantedScopes,
             codeChallenge,
             codeChallengeMethod,
             nonce);
@@ -284,10 +288,22 @@ public class ConnectController : ControllerBase
             : scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
     }
 
-    private static bool IsScopeAllowedForUser(AuthUser user, string requestedScope)
+    private static bool IsKnownUserScope(string requestedScope)
     {
-        return requestedScope is "openid" or "profile" ||
-            user.Scopes.Contains(requestedScope, StringComparer.Ordinal);
+        return requestedScope is "openid" or "profile";
+    }
+
+    private static List<string> ResolveGrantedUserScopes(
+        IReadOnlyCollection<string> requestedScopes,
+        AuthUser user,
+        AuthClient client)
+    {
+        return requestedScopes
+            .Where(requestedScope =>
+                IsKnownUserScope(requestedScope) ||
+                (client.Scopes.Contains(requestedScope, StringComparer.Ordinal) &&
+                    user.Scopes.Contains(requestedScope, StringComparer.Ordinal)))
+            .ToList();
     }
 
     private static bool ValidatePkce(string codeVerifier, AuthorizationCodeRecord authorizationCode)

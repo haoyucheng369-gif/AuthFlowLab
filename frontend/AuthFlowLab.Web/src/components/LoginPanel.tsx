@@ -1,12 +1,14 @@
 type LoginPanelProps = {
   message: string;
   onLogin: () => void;
+  onEntraLogin: () => void;
   onClear: () => void;
 };
 
 export function LoginPanel({
   message,
   onLogin,
+  onEntraLogin,
   onClear
 }: LoginPanelProps) {
   return (
@@ -17,13 +19,15 @@ export function LoginPanel({
       </div>
 
       <p className="muted">
-        {/* 中文注释: 前端只启动 OAuth/OIDC 登录，用户名密码在 Auth Server 登录页输入。 */}
-        Sign in on the Auth Server. The SPA only starts the PKCE authorization request.
+        Sign in with the local lab IdP or Entra ID. The SPA starts the authorization request and stores demo tokens locally.
       </p>
 
       <div className="button-row">
         <button type="button" className="btn btn-primary" onClick={onLogin}>
-          Login with PKCE
+          Local Login
+        </button>
+        <button type="button" className="btn btn-primary" onClick={onEntraLogin}>
+          Entra Login
         </button>
         <button type="button" className="btn btn-outline" onClick={onClear}>
           Clear

@@ -253,6 +253,57 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     }
 
     [Fact]
+    public async Task Token_WithAuthorizationCode_GrantsOnlyUserAllowedScopes()
+    {
+        var verifier = "test-code-verifier-1234567890";
+        var code = await CreateAuthorizationCode(verifier, "openid profile content.read content.write", "scope-nonce");
+
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = "demo-spa",
+            ["code"] = code,
+            ["redirect_uri"] = "http://127.0.0.1:5173/callback",
+            ["code_verifier"] = verifier
+        }));
+
+        response.EnsureSuccessStatusCode();
+        var token = await response.Content.ReadFromJsonAsync<TokenResponse>();
+
+        Assert.NotNull(token);
+        Assert.Equal("openid profile content.read", token.Scope);
+        Assert.DoesNotContain("content.write", token.Scope);
+    }
+
+    [Fact]
+    public async Task Token_WithAuthorizationCode_GrantsAdminWriteScope()
+    {
+        var verifier = "test-code-verifier-1234567890";
+        var code = await CreateAuthorizationCode(
+            verifier,
+            "openid profile content.read content.write",
+            "admin-scope-nonce",
+            username: "test-admin",
+            password: "admin123");
+
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = "demo-spa",
+            ["code"] = code,
+            ["redirect_uri"] = "http://127.0.0.1:5173/callback",
+            ["code_verifier"] = verifier
+        }));
+
+        response.EnsureSuccessStatusCode();
+        var token = await response.Content.ReadFromJsonAsync<TokenResponse>();
+
+        Assert.NotNull(token);
+        Assert.Equal("openid profile content.read content.write", token.Scope);
+    }
+
+
+    [Fact]
     public async Task UserInfo_WithAccessToken_ReturnsUserClaims()
     {
         var verifier = "test-code-verifier-1234567890";
@@ -303,9 +354,11 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     private async Task<string> CreateAuthorizationCode(
         string verifier,
         string scope = "content.read",
-        string? nonce = null)
+        string? nonce = null,
+        string username = "test-user",
+        string password = "user123")
     {
-        await SignInOnAuthServer();
+        await SignInOnAuthServer(username, password);
 
         var authorizeUrl = QueryHelpers.AddQueryString("/connect/authorize", new Dictionary<string, string?>
         {
@@ -326,12 +379,12 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
         return callbackQuery["code"].ToString();
     }
 
-    private async Task SignInOnAuthServer()
+    private async Task SignInOnAuthServer(string username = "test-user", string password = "user123")
     {
         var response = await _client.PostAsync("/account/login", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["username"] = "test-user",
-            ["password"] = "user123",
+            ["username"] = username,
+            ["password"] = password,
             ["returnUrl"] = "/"
         }));
 
@@ -387,6 +440,7 @@ public sealed class AuthServerFactory : WebApplicationFactory<Program>
                 ["Auth:Clients:1:Scopes:0"] = "openid",
                 ["Auth:Clients:1:Scopes:1"] = "profile",
                 ["Auth:Clients:1:Scopes:2"] = "content.read",
+                ["Auth:Clients:1:Scopes:3"] = "content.write",
                 ["Auth:Clients:1:RedirectUris:0"] = "http://127.0.0.1:5173/callback"
             });
         });

@@ -1,18 +1,22 @@
 import { stringClaim } from '../format';
 
 type SessionPanelProps = {
+  accessTokenPayload: Record<string, unknown> | null;
   idTokenPayload: Record<string, unknown> | null;
-  scope?: string;
+  provider?: 'local' | 'entra';
   isAuthenticated: boolean;
   onCallApi: () => void;
+  onCallWriteApi: () => void;
   onUserInfo: () => void;
 };
 
 export function SessionPanel({
+  accessTokenPayload,
   idTokenPayload,
-  scope,
+  provider,
   isAuthenticated,
   onCallApi,
+  onCallWriteApi,
   onUserInfo
 }: SessionPanelProps) {
   return (
@@ -23,17 +27,21 @@ export function SessionPanel({
       </div>
 
       <dl className="claim-list">
-        {/* 中文注释: 这些字段来自 id_token，表示“谁登录了”，不是 API 授权结果。 */}
-        <ClaimItem label="Subject" value={stringClaim(idTokenPayload?.sub)} />
-        <ClaimItem label="Name" value={stringClaim(idTokenPayload?.name)} />
-        <ClaimItem label="Audience" value={stringClaim(idTokenPayload?.aud)} />
-        <ClaimItem label="Scope" value={scope ?? '-'} />
+        <ClaimItem label="Provider" value={provider ?? '-'} />
+        <ClaimItem label="Subject" value={stringClaim(idTokenPayload?.sub ?? accessTokenPayload?.sub)} />
+        <ClaimItem label="Name" value={stringClaim(idTokenPayload?.name ?? accessTokenPayload?.name)} />
+        <ClaimItem label="ID Token Audience" value={stringClaim(idTokenPayload?.aud)} />
+        <ClaimItem label="Access Token Issuer" value={stringClaim(accessTokenPayload?.iss)} />
+        <ClaimItem label="Access Token Audience" value={stringClaim(accessTokenPayload?.aud)} />
+        <ClaimItem label="Access Token Scope" value={stringClaim(accessTokenPayload?.scp ?? accessTokenPayload?.scope)} />
       </dl>
 
       <div className="button-row">
-        {/* 中文注释: 下面两个请求都会携带 access_token，浏览器会因为 Authorization header 先发 CORS preflight。 */}
         <button type="button" className="btn btn-primary" onClick={onCallApi}>
-          Call API
+          Call Read API
+        </button>
+        <button type="button" className="btn btn-primary" onClick={onCallWriteApi}>
+          Call Write API
         </button>
         <button type="button" className="btn btn-primary" onClick={onUserInfo}>
           UserInfo

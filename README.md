@@ -9,11 +9,26 @@ A minimal authentication and authorization lab for learning JWT bearer validatio
 - Authorization code + PKCE issues user access tokens through `/connect/authorize` and `/connect/token`.
 - Auth Server exposes OpenID Connect discovery metadata and JWKS.
 - API Server validates JWTs signed by Auth Server.
+- API Server can also validate Entra ID access tokens for the configured tenant/API scope.
 - API endpoints demonstrate anonymous, authenticated, role, scope, service-only, and API-key authorization.
 
 ## Architecture
 
 Frontend -> Auth Server -> API
+
+Entra mode:
+
+Frontend -> Entra ID -> API
+
+```mermaid
+flowchart LR
+    Browser[React SPA] -->|Authorization Code + PKCE| LocalIdP[AuthFlowLab Auth Server]
+    Browser -->|MSAL Authorization Code + PKCE| Entra[Microsoft Entra ID]
+    LocalIdP -->|Discovery + JWKS| Api[AuthFlowLab API Server]
+    Entra -->|Discovery + JWKS| Api
+    Browser -->|Bearer access_token| Api
+    Browser -->|Graph access token| Graph[Microsoft Graph /me]
+```
 
 For the current lab stage:
 
@@ -21,7 +36,57 @@ For the current lab stage:
 - If no private key file exists, Auth Server generates an ephemeral RSA key for the current process.
 - Auth Server exposes its public signing key through JWKS, so a separate `public.key` file is not required.
 - API Server uses `Jwt:Authority` to load discovery metadata and JWKS automatically.
+- API Server uses `Jwt:Entra:Authority` and `Jwt:Entra:Audience` to validate Microsoft Entra ID tokens.
 - User accounts, client credentials, allowed scopes, and token lifetime are configured in `AuthFlowLab.AuthServer/appsettings.json`.
+
+## Entra ID Configuration
+
+The repo is configured for these local lab registrations:
+
+| Purpose | Name | Client ID |
+| --- | --- | --- |
+| Protected API | `AuthFlowLab API` | `b5b7fdde-0835-4e46-863d-463b1432e9f7` |
+| Browser SPA | `AuthFlowLab SPA` | `35b46efc-ba76-4940-bc2a-a4fa1b904dcb` |
+
+Tenant:
+
+```text
+976c3c85-e425-4880-a658-3653df9cebf2
+```
+
+API delegated scope:
+
+```text
+api://b5b7fdde-0835-4e46-863d-463b1432e9f7/access_as_user
+api://b5b7fdde-0835-4e46-863d-463b1432e9f7/write_as_user
+```
+
+SPA redirect URI:
+
+```text
+http://localhost:5173/callback
+```
+
+The frontend uses MSAL for Entra ID. The API accepts either the local `content.read` scope or the Entra `access_as_user` scope on `GET /content/read`; it accepts either local `content.write` or Entra `write_as_user` on `POST /content/write`.
+
+To enable Entra write access in Azure:
+
+1. Open `AuthFlowLab API` -> `Expose an API`.
+2. Add delegated scope `write_as_user`.
+3. Open `AuthFlowLab SPA` -> `API permissions`.
+4. Add permission `AuthFlowLab API / write_as_user`.
+5. Grant consent if your tenant requires it.
+
+## What This Demonstrates
+
+- OAuth2 `client_credentials` for service-to-service tokens.
+- OAuth2 Authorization Code + PKCE for browser login.
+- OIDC `id_token`, discovery metadata, JWKS, nonce, and UserInfo.
+- JWT access token validation with issuer, audience, lifetime, signature, role, and scope checks.
+- Local RSA signing key usage and public-key discovery through JWKS.
+- API authorization levels: anonymous, authenticated, role, scope, service-only, and API key.
+- Microsoft Entra ID integration with MSAL and Microsoft Graph.
+- The distinction between authentication failures (`401`) and authorization failures (`403`).
 
 ## Run With Docker
 
@@ -36,7 +101,7 @@ Open:
 
 ```text
 # 中文注释: Docker 一键启动后的前端地址。
-http://127.0.0.1:5173
+http://localhost:5173
 ```
 
 Stop the stack:
@@ -69,7 +134,7 @@ Open:
 
 ```text
 # 中文注释: 打开前端开发服务器地址。
-http://127.0.0.1:5173
+http://localhost:5173
 ```
 
 ## Test Users And Clients
@@ -86,7 +151,7 @@ Client:
 | Client ID | Client Secret | Scope |
 | --- | --- | --- |
 | `worker-service` | `worker-secret` | `content.read content.write` |
-| `demo-spa` | none | `openid profile content.read` |
+| `demo-spa` | none | `openid profile content.read content.write` |
 
 These are lab credentials. Do not use committed secrets for real systems.
 
@@ -165,6 +230,8 @@ Start the authorization request:
 GET http://127.0.0.1:5001/connect/authorize?response_type=code&client_id=demo-spa&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Fcallback&scope=openid%20profile%20content.read&state=demo-state&nonce=demo-nonce&code_challenge=mvtzfCbIJ5YDPp1UVYfCnz2ZSvRrCEUgWtyrhVS6xo8&code_challenge_method=S256
 ```
 
+The browser frontend requests `openid profile content.read content.write`. Auth Server grants only the intersection of requested scopes, client scopes, and user scopes. For example, `user` receives `content.read`, while `admin` receives `content.read content.write`.
+
 For this example:
 
 ```text
@@ -227,8 +294,8 @@ The JWKS document exposes the RSA public key used by API servers to verify JWT s
 | `GET /content/public` | Anonymous |
 | `GET /content/user` | Any valid bearer token |
 | `GET /content/admin` | `Admin` role |
-| `GET /content/read` | `content.read` scope |
-| `POST /content/write` | `content.write` scope |
+| `GET /content/read` | Local `content.read` scope or Entra `access_as_user` scope |
+| `POST /content/write` | Local `content.write` scope or Entra `write_as_user` scope |
 | `GET /content/service` | `token_type=service` |
 | `GET /content/api-key` | Valid `X-Api-Key` header |
 
@@ -294,13 +361,13 @@ Auth Server:
 
 API Server:
 
-- `backend/AuthFlowLab.ApiServer/Program.cs` configures JWT bearer validation, API-key authentication, and authorization policies.
+- `backend/AuthFlowLab.ApiServer/Program.cs` configures local JWT validation, Entra JWT validation, API-key authentication, and authorization policies.
 - `backend/AuthFlowLab.ApiServer/Controllers/ContentController.cs` demonstrates anonymous, authenticated, role, scope, service-only, and API-key endpoints.
 - `backend/AuthFlowLab.ApiServer/Authentication/ApiKeyAuthenticationHandler.cs` validates `X-Api-Key` locally and creates claims for the API-key policy.
 
 Frontend:
 
-- `frontend/AuthFlowLab.Web/src/auth.ts` generates PKCE values, starts `/connect/authorize`, exchanges callback `code` for tokens, validates `state`/`nonce`, and stores demo tokens.
+- `frontend/AuthFlowLab.Web/src/auth.ts` generates local PKCE values, starts `/connect/authorize`, exchanges callback `code` for tokens, validates `state`/`nonce`, and uses MSAL for Entra ID login.
 - `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login callback handling, API calls, and local logout.
 - `frontend/AuthFlowLab.Web/src/components/*` contains the login, session, result, and token display panels.
 - `frontend/AuthFlowLab.Web/src/config.ts` centralizes demo URLs, client id, redirect URI, scope, and storage keys.
@@ -309,11 +376,23 @@ Frontend:
 
 1. Start Auth Server on `http://127.0.0.1:5001`.
 2. Start API Server on `http://127.0.0.1:5002`.
-3. Start the Vite frontend on `http://127.0.0.1:5173`.
-4. Open the frontend and click `Login with PKCE`.
+3. Start the Vite frontend on `http://localhost:5173`.
+4. Open the frontend and click `Local Login`.
 5. Auth Server shows its login page if there is no login cookie.
 6. Sign in with `user / user123` or `admin / admin123`.
 7. Auth Server redirects back to `/callback` with an authorization code.
 8. The frontend exchanges the code for `access_token` and `id_token`.
-9. Click `Call API` to call `GET /content/read` with the access token.
-10. Click `UserInfo` to call `GET /connect/userinfo` with the access token.
+9. Click `Call Read API` to call `GET /content/read` with the access token.
+10. Click `Call Write API` to call `POST /content/write`. `user` should receive 403; `admin` should receive 200.
+11. Click `UserInfo` to call `GET /connect/userinfo` with the access token.
+
+## Entra Browser Flow
+
+1. Start API Server on `http://127.0.0.1:5002`.
+2. Start the Vite frontend on `http://localhost:5173`.
+3. Open the frontend and click `Entra Login`.
+4. Microsoft Entra ID signs in the tenant user and redirects back to `/callback`.
+5. MSAL stores the Entra account/session data in browser session storage.
+6. Click `Call Read API` to call `GET /content/read` with the Entra access token.
+7. Click `Call Write API` to call `POST /content/write`. It returns 200 only after `write_as_user` is exposed by the API app registration, granted to the SPA app registration, and present in the access token.
+8. Click `UserInfo` to call Microsoft Graph `/me` with a Graph access token.

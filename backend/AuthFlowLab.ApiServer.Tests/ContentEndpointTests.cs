@@ -56,6 +56,18 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
     }
 
     [Fact]
+    public async Task ReadContent_AllowsEntraStyleScopeClaim()
+    {
+        UseBearerToken(_factory.CreateToken("entra-user", tokenType: "user", scp: "access_as_user"));
+
+        var response = await _client.GetAsync("/content/read");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, content);
+        Assert.Equal("Content read allowed", content);
+    }
+
+    [Fact]
     public async Task WriteContent_RejectsUserWithoutContentWriteScope()
     {
         UseBearerToken(_factory.CreateToken("user", tokenType: "user", role: "User", scope: "content.read"));
@@ -151,7 +163,7 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
     {
     }
 
-    public string CreateToken(string subject, string tokenType, string? role = null, string? scope = null)
+    public string CreateToken(string subject, string tokenType, string? role = null, string? scope = null, string? scp = null)
     {
         var claims = new List<Claim>
         {
@@ -167,6 +179,11 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
         if (scope is not null)
         {
             claims.Add(new Claim("scope", scope));
+        }
+
+        if (scp is not null)
+        {
+            claims.Add(new Claim("scp", scp));
         }
 
         var token = new JwtSecurityToken(
@@ -199,7 +216,7 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            services.PostConfigure<JwtBearerOptions>("LocalJwt", options =>
             {
                 var signingKey = new RsaSecurityKey(_rsa)
                 {

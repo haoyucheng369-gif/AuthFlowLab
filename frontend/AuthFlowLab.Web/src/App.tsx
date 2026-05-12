@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiServer, authServer } from './config';
-import { clearSession, completeLoginCallback, decodeJwtPayload, readTokens, startLogin } from './auth';
+import {
+  clearSession,
+  decodeJwtPayload,
+  getApiToken,
+  getGraphAccessToken,
+  initializeAuthState,
+  readTokens,
+  startEntraLogin,
+  startLogin
+} from './auth';
 import { LoginPanel } from './components/LoginPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { SessionPanel } from './components/SessionPanel';
@@ -13,23 +22,45 @@ export function App() {
   const [result, setResult] = useState<CallResult | null>(null);
 
   const idTokenPayload = useMemo(() => {
-    // 中文注释: id_token 只用于前端展示登录用户信息，API 调用使用 access_token。
     return tokens?.id_token ? decodeJwtPayload(tokens.id_token) : null;
   }, [tokens]);
 
-  useEffect(() => {
-    if (window.location.pathname !== '/callback') {
-      return;
-    }
+  const accessTokenPayload = useMemo(() => {
+    return tokens?.access_token ? decodeJwtPayload(tokens.access_token) : null;
+  }, [tokens]);
 
-    // 中文注释: 登录回调只在应用层处理一次，组件只展示状态。
-    void completeLoginCallback()
+  useEffect(() => {
+    void initializeAuthState()
       .then((tokenResponse) => {
-        setTokens(tokenResponse);
-        setMessage('Login completed.');
+        if (tokenResponse) {
+          setTokens(tokenResponse);
+          setMessage(tokenResponse.provider === 'entra' ? 'Entra session ready.' : 'Login completed.');
+        }
       })
       .catch((error: Error) => setMessage(error.message));
   }, []);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (tokens) {
+        return;
+      }
+
+      void initializeAuthState()
+        .then((tokenResponse) => {
+          if (tokenResponse) {
+            setTokens(tokenResponse);
+            setMessage(tokenResponse.provider === 'entra' ? 'Entra session ready.' : 'Login completed.');
+          }
+        })
+        .catch((error: Error) => setMessage(error.message));
+    };
+
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [tokens]);
 
   async function handleLogin() {
     setMessage('');
@@ -37,25 +68,64 @@ export function App() {
     await startLogin();
   }
 
-  async function callApi(path: string, label: string) {
+  async function handleEntraLogin() {
+    setMessage('');
+    setResult(null);
+    await startEntraLogin();
+  }
+
+  async function callApi(path: string, label: string, method = 'GET') {
     if (!tokens?.access_token) {
       setMessage('Login first.');
       return;
     }
 
+    const currentTokens = await getApiToken(tokens);
+    setTokens(currentTokens);
+
     const response = await fetch(path, {
+      method,
       headers: {
-        Authorization: `Bearer ${tokens.access_token}`
+        Authorization: `Bearer ${currentTokens.access_token}`
       }
     });
 
-    // 中文注释: 这里展示 API 返回结果，方便观察 200/401/403 等授权效果。
     const body = await response.text();
-    setResult({ label, status: response.status, body });
+    const authenticateHeader = response.headers.get('www-authenticate');
+    setResult({
+      label,
+      status: response.status,
+      body: authenticateHeader ? `${body}\n\nWWW-Authenticate: ${authenticateHeader}` : body
+    });
+  }
+
+  async function callUserInfo() {
+    if (!tokens?.access_token) {
+      setMessage('Login first.');
+      return;
+    }
+
+    if (tokens.provider === 'entra') {
+      const graphToken = await getGraphAccessToken();
+      const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+        headers: {
+          Authorization: `Bearer ${graphToken}`
+        }
+      });
+      const body = await response.text();
+      const authenticateHeader = response.headers.get('www-authenticate');
+      setResult({
+        label: 'Microsoft Graph /me',
+        status: response.status,
+        body: authenticateHeader ? `${body}\n\nWWW-Authenticate: ${authenticateHeader}` : body
+      });
+      return;
+    }
+
+    await callApi(`${authServer}/connect/userinfo`, 'AuthServer /connect/userinfo');
   }
 
   function logout() {
-    // 中文注释: 这里只清理 SPA 本地 token；Auth Server 的登录 cookie 可通过 /account/logout 扩展处理。
     clearSession();
     setTokens(null);
     setResult(null);
@@ -67,15 +137,18 @@ export function App() {
       <LoginPanel
         message={message}
         onClear={logout}
+        onEntraLogin={() => void handleEntraLogin()}
         onLogin={() => void handleLogin()}
       />
 
       <SessionPanel
+        accessTokenPayload={accessTokenPayload}
         idTokenPayload={idTokenPayload}
-        scope={tokens?.scope}
+        provider={tokens?.provider}
         isAuthenticated={Boolean(tokens)}
         onCallApi={() => void callApi(`${apiServer}/content/read`, 'ApiServer /content/read')}
-        onUserInfo={() => void callApi(`${authServer}/connect/userinfo`, 'AuthServer /connect/userinfo')}
+        onCallWriteApi={() => void callApi(`${apiServer}/content/write`, 'ApiServer /content/write', 'POST')}
+        onUserInfo={() => void callUserInfo()}
       />
 
       <ResultPanel result={result} />
