@@ -25,6 +25,55 @@ flowchart LR
 
 The Auth Server signs local JWTs and publishes its public key through JWKS. The API Server loads signing keys from `Jwt:Authority` for local tokens and validates Entra ID tokens through `Jwt:Entra:Authority` and `Jwt:Entra:Audience`.
 
+## Local vs Entra
+
+| Concept | Local Auth Server | Microsoft Entra ID |
+| --- | --- | --- |
+| Identity provider | `AuthFlowLab.AuthServer` | Microsoft Entra ID tenant |
+| Browser client | `demo-spa` in appsettings | SPA app registration |
+| Protected API | `aud=api-server` configuration | API app registration |
+| Token issuer | Local Auth Server URL | `login.microsoftonline.com` |
+| Signing keys | Local JWKS | Microsoft JWKS |
+| Scope claim | `scope` | `scp` |
+| API validation scheme | `LocalJwt` | `EntraJwt` |
+
+## Flows
+
+Local authorization code + PKCE:
+
+```mermaid
+sequenceDiagram
+    participant Browser as React SPA
+    participant Auth as AuthFlowLab Auth Server
+    participant Api as AuthFlowLab API Server
+
+    Browser->>Auth: /connect/authorize with code_challenge
+    Auth-->>Browser: Redirect to /callback with code
+    Browser->>Auth: /connect/token with code_verifier
+    Auth-->>Browser: access_token and id_token
+    Browser->>Api: API request with local bearer token
+    Api->>Auth: Load discovery metadata and JWKS
+    Api-->>Browser: Authorized response
+```
+
+Entra authorization code + PKCE:
+
+```mermaid
+sequenceDiagram
+    participant Browser as React SPA
+    participant Entra as Microsoft Entra ID
+    participant Api as AuthFlowLab API Server
+    participant Graph as Microsoft Graph
+
+    Browser->>Entra: MSAL loginRedirect with API scopes
+    Entra-->>Browser: Redirect to /callback with auth result
+    Browser->>Entra: MSAL acquires API access token
+    Browser->>Api: API request with Entra bearer token
+    Api->>Entra: Load discovery metadata and JWKS
+    Api-->>Browser: Authorized response
+    Browser->>Graph: /me with Graph access token
+```
+
 ## Entra ID
 
 The repository is configured for a protected API registration and a browser SPA registration:

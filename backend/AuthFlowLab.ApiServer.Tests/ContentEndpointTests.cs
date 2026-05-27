@@ -88,6 +88,20 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
     }
 
     [Fact]
+    public async Task ReadContent_AllowsEntraJwtBearerToken()
+    {
+        // 中文注释：这个 token 使用 Entra issuer/audience 和独立签名 key，只配置给 EntraJwt scheme。
+        // 如果请求成功，说明 SmartBearer 正确分流到了 EntraJwt，而不是误走 LocalJwt。
+        UseBearerToken(_factory.CreateEntraToken("entra-user", scp: "access_as_user"));
+
+        var response = await _client.GetAsync("/content/read");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, content);
+        Assert.Equal("Content read allowed", content);
+    }
+
+    [Fact]
     public async Task WriteContent_RejectsUserWithoutContentWriteScope()
     {
         UseBearerToken(_factory.CreateToken("user", tokenType: "user", role: "User", scope: "content.read"));
@@ -178,6 +192,7 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
 public sealed class ApiServerFactory : WebApplicationFactory<Program>
 {
     private readonly RSA _rsa = RSA.Create(2048);
+    private readonly RSA _entraRsa = RSA.Create(2048);
 
     public ApiServerFactory()
     {
@@ -219,6 +234,29 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public string CreateEntraToken(string subject, string scp)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, subject),
+            new("scp", scp),
+            new("name", "Entra Test User")
+        };
+
+        // 中文注释：这里模拟 Entra ID access token 的关键字段，重点覆盖 issuer、audience 和 scp。
+        var token = new JwtSecurityToken(
+            issuer: "https://login.microsoftonline.com/976c3c85-e425-4880-a658-3653df9cebf2/v2.0",
+            audience: "api://b5b7fdde-0835-4e46-863d-463b1432e9f7",
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(10),
+            signingCredentials: new SigningCredentials(new RsaSecurityKey(_entraRsa)
+            {
+                KeyId = "entra-test-key"
+            }, SecurityAlgorithms.RsaSha256));
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseContentRoot(FindProjectDirectory("AuthFlowLab.ApiServer"));
@@ -229,6 +267,8 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
                 ["Jwt:Authority"] = "http://auth-flow-lab.test",
                 ["Jwt:Audience"] = "api-server",
                 ["Jwt:RequireHttpsMetadata"] = "false",
+                ["Jwt:Entra:Authority"] = "https://login.microsoftonline.com/976c3c85-e425-4880-a658-3653df9cebf2/v2.0",
+                ["Jwt:Entra:Audience"] = "api://b5b7fdde-0835-4e46-863d-463b1432e9f7",
                 ["ApiKeys:Keys:0:Name"] = "test-tool",
                 ["ApiKeys:Keys:0:Value"] = "test-api-key"
             });
@@ -246,6 +286,24 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
                 options.Configuration = new OpenIdConnectConfiguration
                 {
                     Issuer = "http://auth-flow-lab.test"
+                };
+
+                options.Configuration.SigningKeys.Add(signingKey);
+                options.TokenValidationParameters.IssuerSigningKey = signingKey;
+                options.TokenValidationParameters.TryAllIssuerSigningKeys = true;
+            });
+
+            services.PostConfigure<JwtBearerOptions>("EntraJwt", options =>
+            {
+                var signingKey = new RsaSecurityKey(_entraRsa)
+                {
+                    KeyId = "entra-test-key"
+                };
+
+                // 中文注释：测试环境不访问 Microsoft discovery endpoint，直接注入模拟的 Entra JWKS 配置。
+                options.Configuration = new OpenIdConnectConfiguration
+                {
+                    Issuer = "https://login.microsoftonline.com/976c3c85-e425-4880-a658-3653df9cebf2/v2.0"
                 };
 
                 options.Configuration.SigningKeys.Add(signingKey);
