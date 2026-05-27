@@ -6,6 +6,7 @@ type SessionPanelProps = {
   provider?: 'local' | 'entra';
   isAuthenticated: boolean;
   onCallApi: () => void;
+  onCallClaims: () => void;
   onCallWriteApi: () => void;
   onUserInfo: () => void;
 };
@@ -16,6 +17,7 @@ export function SessionPanel({
   provider,
   isAuthenticated,
   onCallApi,
+  onCallClaims,
   onCallWriteApi,
   onUserInfo
 }: SessionPanelProps) {
@@ -39,6 +41,10 @@ export function SessionPanel({
       <div className="button-row">
         <button type="button" className="btn btn-primary" onClick={onCallApi}>
           Call Read API
+        </button>
+        {/* 中文注释：Claims 按钮用于查看 API Server 认证后的服务端 claims，而不是只看浏览器里解码的 JWT。 */}
+        <button type="button" className="btn btn-primary" onClick={onCallClaims}>
+          Claims
         </button>
         <button type="button" className="btn btn-primary" onClick={onCallWriteApi}>
           Call Write API

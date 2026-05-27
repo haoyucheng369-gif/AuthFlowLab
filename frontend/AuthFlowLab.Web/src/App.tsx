@@ -141,18 +141,26 @@ export function App() {
         onLogin={() => void handleLogin()}
       />
 
+      {/* 中文注释：Claims 按钮会调用 /content/me，查看 token 在 API 中被解析成哪些 Identity 和 Claims。 */}
       <SessionPanel
         accessTokenPayload={accessTokenPayload}
         idTokenPayload={idTokenPayload}
         provider={tokens?.provider}
         isAuthenticated={Boolean(tokens)}
         onCallApi={() => void callApi(`${apiServer}/content/read`, 'ApiServer /content/read')}
+        onCallClaims={() => void callApi(`${apiServer}/content/me`, 'ApiServer /content/me')}
         onCallWriteApi={() => void callApi(`${apiServer}/content/write`, 'ApiServer /content/write', 'POST')}
         onUserInfo={() => void callUserInfo()}
       />
 
       <ResultPanel result={result} />
-      <TokenPanel accessToken={tokens?.access_token} idToken={tokens?.id_token} />
+      <TokenPanel
+        accessToken={tokens?.access_token}
+        accessTokenPayload={accessTokenPayload}
+        idToken={tokens?.id_token}
+        idTokenPayload={idTokenPayload}
+        provider={tokens?.provider}
+      />
     </main>
   );
 }

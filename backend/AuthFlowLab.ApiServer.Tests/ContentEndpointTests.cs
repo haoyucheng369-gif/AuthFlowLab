@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -40,6 +41,25 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
         var response = await _client.GetAsync("/content/user");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MeContent_ReturnsCurrentPrincipalClaims()
+    {
+        UseBearerToken(_factory.CreateToken("user", tokenType: "user", role: "User", scope: "content.read"));
+
+        var response = await _client.GetAsync("/content/me");
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, content);
+
+        using var document = JsonDocument.Parse(content);
+        var root = document.RootElement;
+        Assert.True(root.GetProperty("authentication").GetProperty("isAuthenticated").GetBoolean());
+
+        var claims = root.GetProperty("claims");
+        Assert.Equal("user", claims.GetProperty(JwtRegisteredClaimNames.Sub).GetString());
+        Assert.Equal("content.read", claims.GetProperty("scope").GetString());
     }
 
     [Fact]

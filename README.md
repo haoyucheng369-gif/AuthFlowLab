@@ -85,6 +85,7 @@ These are development credentials for the local environment. Do not use committe
 | --- | --- |
 | `GET /content/public` | Anonymous |
 | `GET /content/user` | Any valid bearer token |
+| `GET /content/me` | Current authentication state and claims |
 | `GET /content/admin` | `Admin` role |
 | `GET /content/read` | Local `content.read` or Entra `access_as_user` |
 | `POST /content/write` | Local `content.write` or Entra `write_as_user` |
