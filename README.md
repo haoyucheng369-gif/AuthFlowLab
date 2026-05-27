@@ -1,15 +1,17 @@
 # AuthFlowLab
 
-AuthFlowLab is a full-stack authentication and authorization reference implementation for modern identity flows across a custom authorization server, protected APIs, a React SPA, and Microsoft Entra ID. It focuses on standards-based token issuance, JWT validation, delegated user access, service-to-service authorization, and clear separation between identity provider, client, and resource server responsibilities.
+AuthFlowLab is a full-stack authentication and authorization reference implementation built with ASP.NET Core and React. It demonstrates how a custom authorization server, protected APIs, browser clients, service clients, and Microsoft Entra ID fit together in a standards-based identity architecture.
 
-## Capabilities
+The project focuses on the parts that matter in production systems: token issuance, JWT validation, discovery metadata, signing keys, delegated user access, service-to-service access, multi-issuer API authentication, and clear resource-server authorization rules.
+
+## What It Covers
 
 - Custom Auth Server with OAuth2 authorization code + PKCE, client credentials, OIDC discovery, UserInfo, and JWKS.
-- API Server with JWT bearer validation for both locally issued tokens and Microsoft Entra ID access tokens.
-- React SPA with local sign-in and MSAL-based Entra ID sign-in.
-- Scope-based, role-based, service-only, and API-key authorization.
+- API Server that validates both local Auth Server JWTs and Microsoft Entra ID access tokens.
+- React SPA with local sign-in, MSAL-based Entra sign-in, Token Inspector, and server-side claims inspection.
+- Authorization policies for scopes, roles, service tokens, and API keys.
 - RSA-backed JWT signing with public-key discovery through JWKS.
-- Docker, local run commands, HTTP request files, backend tests, and frontend build verification.
+- Automated backend tests, frontend build verification, Docker support, and `.http` request samples.
 
 ## Architecture
 
@@ -23,16 +25,16 @@ flowchart LR
     Browser -->|Graph access token| Graph[Microsoft Graph /me]
 ```
 
-The Auth Server signs local JWTs and publishes its public key through JWKS. The API Server loads signing keys from `Jwt:Authority` for local tokens and validates Entra ID tokens through `Jwt:Entra:Authority` and `Jwt:Entra:Audience`.
+The API Server uses a policy scheme to route bearer tokens to either `LocalJwt` or `EntraJwt`. Local tokens are validated from the Auth Server discovery document and JWKS; Entra tokens are validated from Microsoft discovery metadata and tenant signing keys.
 
 ## Local vs Entra
 
 | Concept | Local Auth Server | Microsoft Entra ID |
 | --- | --- | --- |
-| Identity provider | `AuthFlowLab.AuthServer` | Microsoft Entra ID tenant |
-| Browser client | `demo-spa` in appsettings | SPA app registration |
-| Protected API | `aud=api-server` configuration | API app registration |
-| Token issuer | Local Auth Server URL | `login.microsoftonline.com` |
+| Identity provider | `AuthFlowLab.AuthServer` | Microsoft Entra tenant |
+| Browser client | `demo-spa` configured locally | SPA app registration |
+| Protected API | `aud=api-server` | API app registration |
+| Issuer | Local Auth Server URL | `login.microsoftonline.com` |
 | Signing keys | Local JWKS | Microsoft JWKS |
 | Scope claim | `scope` | `scp` |
 | API validation scheme | `LocalJwt` | `EntraJwt` |
@@ -56,6 +58,21 @@ sequenceDiagram
     Api-->>Browser: Authorized response
 ```
 
+Client credentials:
+
+```mermaid
+sequenceDiagram
+    participant Service as worker-service
+    participant Auth as AuthFlowLab Auth Server
+    participant Api as AuthFlowLab API Server
+
+    Service->>Auth: /connect/token with client_id and client_secret
+    Auth-->>Service: service access_token
+    Service->>Api: API request with service bearer token
+    Api->>Auth: Load discovery metadata and JWKS
+    Api-->>Service: Authorized response
+```
+
 Entra authorization code + PKCE:
 
 ```mermaid
@@ -73,23 +90,6 @@ sequenceDiagram
     Api-->>Browser: Authorized response
     Browser->>Graph: /me with Graph access token
 ```
-
-## Entra ID
-
-The repository is configured for a protected API registration and a browser SPA registration:
-
-| Purpose | Name | Client ID |
-| --- | --- | --- |
-| Protected API | `AuthFlowLab API` | `b5b7fdde-0835-4e46-863d-463b1432e9f7` |
-| Browser SPA | `AuthFlowLab SPA` | `35b46efc-ba76-4940-bc2a-a4fa1b904dcb` |
-
-| Setting | Value |
-| --- | --- |
-| Tenant | `976c3c85-e425-4880-a658-3653df9cebf2` |
-| Redirect URI | `http://localhost:5173/callback` |
-| API scopes | `access_as_user`, `write_as_user` |
-
-The API accepts local `content.read` / `content.write` scopes and Entra `access_as_user` / `write_as_user` scopes for the corresponding read and write endpoints.
 
 ## Run
 
@@ -116,7 +116,7 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-## Development Credentials
+## Test Identities
 
 | Type | Identifier | Secret | Access |
 | --- | --- | --- | --- |
@@ -127,6 +127,23 @@ Open `http://localhost:5173`.
 | API key | `internal-tool` | `dev-api-key-123` | `X-Api-Key` |
 
 These are development credentials for the local environment. Do not use committed secrets for production systems.
+
+## Entra ID
+
+The repository is configured for a protected API registration and a browser SPA registration:
+
+| Purpose | Name | Client ID |
+| --- | --- | --- |
+| Protected API | `AuthFlowLab API` | `b5b7fdde-0835-4e46-863d-463b1432e9f7` |
+| Browser SPA | `AuthFlowLab SPA` | `35b46efc-ba76-4940-bc2a-a4fa1b904dcb` |
+
+| Setting | Value |
+| --- | --- |
+| Tenant | `976c3c85-e425-4880-a658-3653df9cebf2` |
+| Redirect URI | `http://localhost:5173/callback` |
+| API scopes | `access_as_user`, `write_as_user` |
+
+The API accepts local `content.read` / `content.write` scopes and Entra `access_as_user` / `write_as_user` scopes for the corresponding read and write endpoints.
 
 ## API Surface
 
@@ -175,4 +192,5 @@ Frontend:
 
 - `frontend/AuthFlowLab.Web/src/auth.ts` handles local PKCE, callback exchange, nonce validation, MSAL login, and token acquisition.
 - `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login state, API calls, Graph calls, and logout.
+- `frontend/AuthFlowLab.Web/src/components/TokenPanel.tsx` displays decoded JWT fields and raw tokens for inspection.
 - `frontend/AuthFlowLab.Web/src/config.ts` centralizes local URLs, client id, redirect URI, scopes, and storage keys.
