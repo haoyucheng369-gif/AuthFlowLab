@@ -36,19 +36,25 @@ flowchart LR
     Entra[Microsoft Entra ID]
     API[AuthFlowLab API Server]
 
-    SPA -->|Local Login: authorization code + PKCE| Auth
-    Auth -->|AuthFlowLab user token| API
+    SPA -->|A1 local authorize code + PKCE| Auth
+    Auth -->|A2 AuthFlowLab user token| API
 
-    SPA -->|SSO starts at Auth Server login page| Auth
-    Auth -->|redirects user to Entra| Entra
-    Entra -->|OIDC callback to /signin-entra| Auth
-    Auth -->|maps local user and issues AuthFlowLab token| API
+    SPA -->|B1 start local authorize flow| Auth
+    Auth -->|B2 redirect user to Entra| Entra
+    Entra -->|B3 OIDC callback to /signin-entra| Auth
+    Auth -->|B4 map local user and issue AuthFlowLab token| API
 
-    SPA -->|Direct Entra Login with MSAL| Entra
-    Entra -->|Entra access token| API
+    SPA -->|C1 direct Entra login with MSAL| Entra
+    Entra -->|C2 Entra access token| API
 ```
 
 The SPA has three user-facing options: local Auth Server login, Auth Server SSO through Entra, and direct Entra login. In the SSO path, Entra authenticates the user, but AuthFlowLab still issues the API token after local user mapping.
+
+| Path | Steps | Result |
+| --- | --- | --- |
+| A. Local Login | A1 -> A2 | AuthFlowLab authenticates the user and issues an AuthFlowLab token. |
+| B. Auth Server SSO | B1 -> B2 -> B3 -> B4 | Entra authenticates the user; AuthFlowLab maps local permissions and issues an AuthFlowLab token. |
+| C. Direct Entra Login | C1 -> C2 | Entra issues the API token directly. |
 
 ## Service Flow
 
@@ -58,9 +64,9 @@ flowchart LR
     Auth[AuthFlowLab Auth Server]
     API[AuthFlowLab API Server]
 
-    Worker -->|client_credentials| Auth
-    Auth -->|AuthFlowLab service token| Worker
-    Worker -->|Bearer service token| API
+    Worker -->|D1 client_credentials| Auth
+    Auth -->|D2 AuthFlowLab service token| Worker
+    Worker -->|D3 bearer service token| API
 ```
 
 The worker-service path is local Auth Server only. It does not use Entra, does not redirect to SSO, and does not represent a signed-in user. API key access is also supported, but it is kept out of the main architecture flow because it is a separate non-OAuth authentication path.
