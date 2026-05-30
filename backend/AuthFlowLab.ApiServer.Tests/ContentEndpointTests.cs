@@ -36,6 +36,14 @@ public sealed class ContentEndpointTests : IClassFixture<ApiServerFactory>
     }
 
     [Fact]
+    public async Task Health_ReturnsHealthy()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UserContent_RequiresAuthenticatedCaller()
     {
         var response = await _client.GetAsync("/content/user");
@@ -269,6 +277,8 @@ public sealed class ApiServerFactory : WebApplicationFactory<Program>
                 ["Jwt:RequireHttpsMetadata"] = "false",
                 ["Jwt:Entra:Authority"] = "https://login.microsoftonline.com/976c3c85-e425-4880-a658-3653df9cebf2/v2.0",
                 ["Jwt:Entra:Audience"] = "api://b5b7fdde-0835-4e46-863d-463b1432e9f7",
+                ["Jwt:Entra:ClientId"] = "b5b7fdde-0835-4e46-863d-463b1432e9f7",
+                ["Jwt:Entra:TenantId"] = "976c3c85-e425-4880-a658-3653df9cebf2",
                 ["ApiKeys:Keys:0:Name"] = "test-tool",
                 ["ApiKeys:Keys:0:Value"] = "test-api-key"
             });

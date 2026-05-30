@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AuthFlowLab.ApiServer.Authentication;
+using AuthFlowLab.ApiServer.Options;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -12,9 +13,8 @@ const string FrontendCorsPolicy = "Frontend";
 const string SmartBearerScheme = "SmartBearer";
 const string LocalJwtScheme = "LocalJwt";
 const string EntraJwtScheme = "EntraJwt";
-const string DefaultEntraAudience = "api://b5b7fdde-0835-4e46-863d-463b1432e9f7";
-const string DefaultEntraClientId = "b5b7fdde-0835-4e46-863d-463b1432e9f7";
-const string EntraTenantId = "976c3c85-e425-4880-a658-3653df9cebf2";
+var entraJwtOptions = builder.Configuration.GetSection("Jwt:Entra").Get<EntraJwtOptions>()
+    ?? new EntraJwtOptions();
 
 builder.Services.AddCors(options =>
 {
@@ -32,6 +32,14 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHealthChecks();
+builder.Services.AddOptions<EntraJwtOptions>()
+    .Bind(builder.Configuration.GetSection("Jwt:Entra"))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Authority), "Jwt:Entra:Authority is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "Jwt:Entra:Audience is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.TenantId), "Jwt:Entra:TenantId is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.ClientId), "Jwt:Entra:ClientId is required.")
+    .ValidateOnStart();
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -94,7 +102,7 @@ builder.Services
 
             var token = authorization["Bearer ".Length..].Trim();
             if (TryReadJwt(token, out var jwt) &&
-                IsEntraToken(jwt, builder.Configuration["Jwt:Entra:Audience"] ?? DefaultEntraAudience))
+                IsEntraToken(jwt, entraJwtOptions))
             {
                 return EntraJwtScheme;
             }
@@ -124,20 +132,14 @@ builder.Services
         // Entra ID token validation uses Microsoft's discovery/JWKS endpoint for this tenant.
         options.MapInboundClaims = false;
         options.IncludeErrorDetails = true;
-        options.Authority = builder.Configuration["Jwt:Entra:Authority"]
-            ?? "https://login.microsoftonline.com/976c3c85-e425-4880-a658-3653df9cebf2/v2.0";
-        var entraAudience = builder.Configuration["Jwt:Entra:Audience"] ?? DefaultEntraAudience;
-        options.Audience = entraAudience;
+        options.Authority = entraJwtOptions.Authority;
+        options.Audience = entraJwtOptions.Audience;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuers =
-            [
-                $"https://login.microsoftonline.com/{EntraTenantId}/v2.0",
-                $"https://sts.windows.net/{EntraTenantId}/"
-            ],
+            ValidIssuers = GetEntraValidIssuers(entraJwtOptions),
             ValidateAudience = true,
-            ValidAudiences = [entraAudience, DefaultEntraClientId],
+            ValidAudiences = GetEntraValidAudiences(entraJwtOptions),
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             NameClaimType = "name",
@@ -153,23 +155,35 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("ContentRead", policy => policy.RequireAssertion(context =>
+    options.AddPolicy("ContentRead", policy =>
     {
-        // Local tokens use "scope"; Entra access tokens usually use "scp".
-        return HasAnyScope(context.User, "content.read", "access_as_user");
-    }));
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context =>
+        {
+            // Local tokens use "scope"; Entra access tokens usually use "scp".
+            return HasAnyScope(context.User, "content.read", "access_as_user");
+        });
+    });
 
-    options.AddPolicy("ContentWrite", policy => policy.RequireAssertion(context =>
+    options.AddPolicy("ContentWrite", policy =>
     {
-        // Write access accepts the local write scope or the Entra delegated write scope.
-        return HasAnyScope(context.User, "content.write", "write_as_user");
-    }));
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context =>
+        {
+            // Write access accepts the local write scope or the Entra delegated write scope.
+            return HasAnyScope(context.User, "content.write", "write_as_user");
+        });
+    });
 
-    options.AddPolicy("ServiceOnly", policy => policy.RequireAssertion(context =>
+    options.AddPolicy("ServiceOnly", policy =>
     {
-        // Service endpoints require tokens produced by client_credentials.
-        return context.User.HasClaim(c => c.Type == "token_type" && c.Value == "service");
-    }));
+        policy.RequireAuthenticatedUser();
+        policy.RequireAssertion(context =>
+        {
+            // Service endpoints require tokens produced by client_credentials.
+            return context.User.HasClaim(c => c.Type == "token_type" && c.Value == "service");
+        });
+    });
 
     options.AddPolicy("ApiKeyOnly", policy =>
     {
@@ -191,6 +205,7 @@ app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health");
 app.MapControllers();
 
 app.Run();
@@ -210,7 +225,7 @@ static bool TryReadJwt(string token, out JwtSecurityToken jwt)
     }
 }
 
-static bool IsEntraToken(JwtSecurityToken jwt, string configuredAudience)
+static bool IsEntraToken(JwtSecurityToken jwt, EntraJwtOptions options)
 {
     if (jwt.Issuer.StartsWith("https://login.microsoftonline.com/", StringComparison.OrdinalIgnoreCase) ||
         jwt.Issuer.StartsWith("https://sts.windows.net/", StringComparison.OrdinalIgnoreCase))
@@ -219,8 +234,32 @@ static bool IsEntraToken(JwtSecurityToken jwt, string configuredAudience)
     }
 
     return jwt.Audiences.Any(audience =>
-        string.Equals(audience, configuredAudience, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(audience, DefaultEntraClientId, StringComparison.OrdinalIgnoreCase));
+        string.Equals(audience, options.Audience, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(audience, options.ClientId, StringComparison.OrdinalIgnoreCase));
+}
+
+static string[] GetEntraValidIssuers(EntraJwtOptions options)
+{
+    var issuers = new List<string>
+    {
+        options.Authority.TrimEnd('/')
+    };
+
+    if (!string.IsNullOrWhiteSpace(options.TenantId))
+    {
+        issuers.Add($"https://login.microsoftonline.com/{options.TenantId}/v2.0");
+        issuers.Add($"https://sts.windows.net/{options.TenantId}/");
+    }
+
+    return issuers.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+}
+
+static string[] GetEntraValidAudiences(EntraJwtOptions options)
+{
+    return new[] { options.Audience, options.ClientId }
+        .Where(value => !string.IsNullOrWhiteSpace(value))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 }
 
 static bool HasAnyScope(ClaimsPrincipal user, params string[] requiredScopes)

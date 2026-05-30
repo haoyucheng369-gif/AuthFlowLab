@@ -11,6 +11,7 @@ The project focuses on the parts that matter in production systems: token issuan
 - React SPA with local sign-in, MSAL-based Entra sign-in, Token Inspector, and server-side claims inspection.
 - Authorization policies for scopes, roles, service tokens, and API keys.
 - RSA-backed JWT signing with public-key discovery through JWKS.
+- Configurable Entra tenant, audience, client, and issuer validation settings.
 - Automated backend tests, frontend build verification, Docker support, and `.http` request samples.
 
 ## Architecture
@@ -169,6 +170,7 @@ The API accepts local `content.read` / `content.write` scopes and Entra `access_
 | `POST /content/write` | Local `content.write` or Entra `write_as_user` |
 | `GET /content/service` | `token_type=service` |
 | `GET /content/api-key` | Valid `X-Api-Key` header |
+| `GET /health` | Service health probe |
 
 HTTP request examples are available in:
 

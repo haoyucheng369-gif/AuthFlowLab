@@ -44,6 +44,14 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
     }
 
     [Fact]
+    public async Task Health_ReturnsHealthy()
+    {
+        var response = await _client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Login_Returns_AdminWriteScope()
     {
         var response = await _client.PostAsJsonAsync("/auth/login", new
