@@ -1,130 +1,59 @@
 # AuthFlowLab
 
-AuthFlowLab is a full-stack authentication and authorization reference implementation built with ASP.NET Core and React. It demonstrates how a custom authorization server, protected APIs, browser clients, service clients, and Microsoft Entra ID fit together in a standards-based identity architecture.
+AuthFlowLab is a full-stack identity and authorization reference implementation built with ASP.NET Core and React. It demonstrates a custom OAuth2/OIDC authorization server, protected resource APIs, browser-based login, service-to-service access, Microsoft Entra ID integration, and federated SSO.
 
-The project focuses on the parts that matter in production systems: token issuance, JWT validation, discovery metadata, signing keys, delegated user access, service-to-service access, multi-issuer API authentication, and clear resource-server authorization rules.
+The project is designed to show how identity systems are typically split in enterprise applications: authentication, token issuance, JWT validation, scope/role authorization, external identity federation, and API protection.
 
-## What It Covers
+## Capabilities
 
-- Custom Auth Server with OAuth2 authorization code + PKCE, client credentials, optional Entra federated sign-in, OIDC discovery, UserInfo, and JWKS.
-- API Server that validates both local Auth Server JWTs and Microsoft Entra ID access tokens.
-- React SPA with local sign-in, Auth Server federated SSO, MSAL-based Entra sign-in, logout, Token Inspector, and server-side claims inspection.
-- Authorization policies for scopes, roles, service tokens, and API keys.
+- Custom Auth Server with OAuth2 authorization code + PKCE, client credentials, OIDC discovery, UserInfo, and JWKS.
+- Federated SSO from the Auth Server to Microsoft Entra ID.
+- API Server that accepts both local Auth Server JWTs and direct Entra ID access tokens.
+- React SPA with local login, Auth Server SSO login, direct Entra login, logout, token inspection, and claims inspection.
+- Authorization policies for user scopes, roles, service tokens, and API keys.
 - RSA-backed JWT signing with public-key discovery through JWKS.
-- Configurable Entra tenant, audience, client, and issuer validation settings.
-- Automated backend tests, frontend build verification, Docker support, and `.http` request samples.
+- Backend tests, frontend build verification, Docker support, and `.http` request samples.
+
+## Login Modes
+
+| Mode | Flow | Token Used By API | Permission Source |
+| --- | --- | --- | --- |
+| Local Login | SPA -> Auth Server -> API | AuthFlowLab access token | Local `Auth:Users` + `Auth:Clients` |
+| Auth Server SSO | SPA -> Auth Server -> Entra -> Auth Server -> API | AuthFlowLab access token | Entra identifies the user; Auth Server maps to local scopes/roles |
+| Direct Entra Login | SPA -> Entra -> API | Entra access token | Entra API scopes such as `access_as_user` |
+| Client Credentials | Service -> Auth Server -> API | AuthFlowLab service token | Registered service client scopes |
+
+In the SSO flow, Entra ID only proves who the user is. AuthFlowLab still decides what the user can do by mapping the Entra username claim to a local user record and issuing first-party tokens with local scopes and roles.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    Browser[React SPA] -->|Authorization Code + PKCE| LocalIdP[AuthFlowLab Auth Server]
-    Browser -->|MSAL Authorization Code + PKCE| Entra[Microsoft Entra ID]
-    LocalIdP -->|Optional federated OIDC login| Entra
-    LocalIdP -->|Local issuer + JWKS| Api[AuthFlowLab API Server]
-    Entra -->|Entra issuer + JWKS| Api
-    Browser -->|Bearer access_token| Api
-    Browser -->|Graph access token| Graph[Microsoft Graph /me]
+    SPA[React SPA] -->|Local Login / PKCE| Auth[AuthFlowLab Auth Server]
+    Auth -->|Optional SSO| Entra[Microsoft Entra ID]
+    SPA -->|Direct Entra Login| Entra
+    Auth -->|Local JWT + JWKS| API[AuthFlowLab API Server]
+    Entra -->|Entra JWT + JWKS| API
+    Worker[worker-service] -->|client_credentials| Auth
+    SPA -->|Bearer token| API
+    Worker -->|Bearer token| API
 ```
 
-The API Server uses a policy scheme to route bearer tokens to either `LocalJwt` or `EntraJwt`. Local tokens are validated from the Auth Server discovery document and JWKS; Entra tokens are validated from Microsoft discovery metadata and tenant signing keys. In the federated SSO flow, Entra authenticates the user, but the Auth Server maps that external identity to local users, scopes, and roles before issuing first-party tokens.
+## Authorization Model
 
-## Key Concepts
+Local AuthFlowLab tokens use the `scope` claim:
 
-| Concept | Purpose |
-| --- | --- |
-| `access_token` | Sent to the API for authorization. |
-| `id_token` | Sent to the client so it can identify the signed-in user. |
-| `iss` | Identifies the token issuer. |
-| `aud` | Identifies the target API/resource. |
-| `scope` / `scp` | Describes delegated API permissions. |
-| `roles` | Describes role-based access, commonly used for app roles. |
-| JWKS | Publishes public signing keys so APIs can verify JWT signatures. |
+- `content.read` allows read endpoints.
+- `content.write` allows write endpoints.
+- `Admin` role allows admin endpoints.
+- `token_type=service` identifies client-credentials tokens.
 
-## Local vs Entra
+Direct Entra tokens use Entra claims:
 
-| Concept | Local Auth Server | Microsoft Entra ID |
-| --- | --- | --- |
-| Identity provider | `AuthFlowLab.AuthServer`, optionally federated to Entra | Microsoft Entra tenant |
-| Browser client | `demo-spa` configured locally | SPA app registration |
-| Protected API | `aud=api-server` | API app registration |
-| Issuer | Local Auth Server URL | `login.microsoftonline.com` |
-| Signing keys | Local JWKS | Microsoft JWKS |
-| Scope claim | `scope` | `scp` |
-| API validation scheme | `LocalJwt` | `EntraJwt` |
+- `scp=access_as_user` allows read endpoints.
+- `scp=write_as_user` can allow write endpoints if that scope is configured in Azure.
 
-## Flows
-
-Local authorization code + PKCE:
-
-```mermaid
-sequenceDiagram
-    participant Browser as React SPA
-    participant Auth as AuthFlowLab Auth Server
-    participant Api as AuthFlowLab API Server
-
-    Browser->>Auth: /connect/authorize with code_challenge
-    Auth-->>Browser: Redirect to /callback with code
-    Browser->>Auth: /connect/token with code_verifier
-    Auth-->>Browser: access_token and id_token
-    Browser->>Api: API request with local bearer token
-    Api->>Auth: Load discovery metadata and JWKS
-    Api-->>Browser: Authorized response
-```
-
-Local authorization code + Entra federated login:
-
-```mermaid
-sequenceDiagram
-    participant Browser as React SPA
-    participant Auth as AuthFlowLab Auth Server
-    participant Entra as Microsoft Entra ID
-    participant Api as AuthFlowLab API Server
-
-    Browser->>Auth: /connect/authorize with code_challenge
-    Auth-->>Browser: Login page with local and Microsoft options
-    Browser->>Entra: Choose Microsoft sign-in
-    Entra-->>Auth: OIDC callback after enterprise login
-    Auth->>Auth: Map Entra user to local user and scopes
-    Auth-->>Browser: Redirect to /callback with local authorization code
-    Browser->>Auth: /connect/token with code_verifier
-    Auth-->>Browser: AuthFlowLab access_token and id_token
-    Browser->>Api: API request with local bearer token
-    Api-->>Browser: Authorized response
-```
-
-Client credentials:
-
-```mermaid
-sequenceDiagram
-    participant Service as worker-service
-    participant Auth as AuthFlowLab Auth Server
-    participant Api as AuthFlowLab API Server
-
-    Service->>Auth: /connect/token with client_id and client_secret
-    Auth-->>Service: service access_token
-    Service->>Api: API request with service bearer token
-    Api->>Auth: Load discovery metadata and JWKS
-    Api-->>Service: Authorized response
-```
-
-Entra authorization code + PKCE:
-
-```mermaid
-sequenceDiagram
-    participant Browser as React SPA
-    participant Entra as Microsoft Entra ID
-    participant Api as AuthFlowLab API Server
-    participant Graph as Microsoft Graph
-
-    Browser->>Entra: MSAL loginRedirect with API scopes
-    Entra-->>Browser: Redirect to /callback with auth result
-    Browser->>Entra: MSAL acquires API access token
-    Browser->>Api: API request with Entra bearer token
-    Api->>Entra: Load discovery metadata and JWKS
-    Api-->>Browser: Authorized response
-    Browser->>Graph: /me with Graph access token
-```
+The current direct Entra SPA configuration requests only `access_as_user` so the demo works even when the optional Azure `write_as_user` scope has not been created.
 
 ## Run
 
@@ -132,6 +61,12 @@ Docker:
 
 ```powershell
 docker compose up --build
+```
+
+Docker with local private SSO settings:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
 Local backend:
@@ -163,37 +98,31 @@ Open `http://localhost:5173`.
 
 These are development credentials for the local environment. Do not use committed secrets for production systems.
 
-## Entra ID
+## Entra SSO Setup
 
-The repository uses local demo Microsoft Entra registrations for a protected API and a browser SPA:
-
-| Purpose | Name | Client ID |
-| --- | --- | --- |
-| Protected API | `AuthFlowLab API` | `b5b7fdde-0835-4e46-863d-463b1432e9f7` |
-| Browser SPA | `AuthFlowLab SPA` | `35b46efc-ba76-4940-bc2a-a4fa1b904dcb` |
+Auth Server SSO requires a confidential web app registration in Microsoft Entra ID:
 
 | Setting | Value |
 | --- | --- |
-| Tenant | `976c3c85-e425-4880-a658-3653df9cebf2` |
-| Redirect URI | `http://localhost:5173/callback` |
-| API scopes | `access_as_user`; `write_as_user` is optional for direct Entra write tests |
+| Redirect URI | `http://localhost:5001/signin-entra` |
+| Authority | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| Client ID | Entra web app application ID |
+| Client Secret | Store outside Git |
 
-The API accepts local `content.read` / `content.write` scopes and Entra `access_as_user` / `write_as_user` scopes for the corresponding read and write endpoints. The current SPA direct Entra configuration requests only `access_as_user` so the demo works even when the optional Entra write scope has not been created.
-
-Auth Server can also use Entra as an external login provider. In that mode the browser still starts the normal local `/connect/authorize` flow, but the Auth Server offers a Microsoft sign-in option, maps the Entra user back to a local `Auth:Users` entry, then issues its own AuthFlowLab tokens.
-
-External Entra login is disabled by default in the base configuration. To enable it, register a confidential web app in Entra ID and set:
+Configure local secrets with:
 
 ```powershell
-$env:Auth__ExternalProviders__Entra__Enabled = "true"
-$env:Auth__ExternalProviders__Entra__Authority = "https://login.microsoftonline.com/<tenant-id>/v2.0"
-$env:Auth__ExternalProviders__Entra__ClientId = "<auth-server-web-app-client-id>"
-$env:Auth__ExternalProviders__Entra__ClientSecret = "<client-secret>"
+dotnet user-secrets set "Auth:ExternalProviders:Entra:Enabled" "true" --project backend\AuthFlowLab.AuthServer
+dotnet user-secrets set "Auth:ExternalProviders:Entra:Authority" "https://login.microsoftonline.com/<tenant-id>/v2.0" --project backend\AuthFlowLab.AuthServer
+dotnet user-secrets set "Auth:ExternalProviders:Entra:ClientId" "<auth-server-web-app-client-id>" --project backend\AuthFlowLab.AuthServer
+dotnet user-secrets set "Auth:ExternalProviders:Entra:ClientSecret" "<client-secret>" --project backend\AuthFlowLab.AuthServer
 ```
 
-Use `http://localhost:5001/signin-entra` as the Entra redirect URI. The Entra username claim, by default `preferred_username`, must match a local `Auth:Users[*].Username` value so the Auth Server can assign local scopes and roles.
+The Entra username claim, by default `preferred_username`, must match a local `Auth:Users[*].Username` value. That local user controls the final AuthFlowLab scopes and roles.
 
-Logout clears the SPA token cache and calls Auth Server `/account/logout` so the server-side HttpOnly login cookie is removed. Clearing tokens alone is not a full logout because the Auth Server cookie can still silently produce a new authorization code.
+## Logout
+
+The SPA `Logout` action clears local token state and calls Auth Server `/account/logout` to remove the server-side HttpOnly login cookie. Clearing only browser tokens is not enough because an existing Auth Server cookie can still issue a fresh authorization code.
 
 ## API Surface
 
@@ -228,21 +157,18 @@ npm run build
 
 Auth Server:
 
-- `backend/AuthFlowLab.AuthServer/Controllers/AccountController.cs` owns the local sign-in page and HTTP-only login cookie.
-- `backend/AuthFlowLab.AuthServer/Options/EntraExternalLoginOptions.cs` controls the optional Entra federated login provider.
+- `backend/AuthFlowLab.AuthServer/Controllers/AccountController.cs` owns the login page, external login entry point, logout, and Auth Server cookie.
 - `backend/AuthFlowLab.AuthServer/Controllers/ConnectController.cs` owns `/connect/authorize`, `/connect/token`, UserInfo, PKCE validation, scope checks, and code exchange.
-- `backend/AuthFlowLab.AuthServer/Controllers/DiscoveryController.cs` exposes OIDC discovery metadata and JWKS.
-- `backend/AuthFlowLab.AuthServer/Services/JwtService.cs` signs user access tokens, service access tokens, and OIDC ID tokens.
+- `backend/AuthFlowLab.AuthServer/Options/EntraExternalLoginOptions.cs` controls the optional Entra SSO provider.
+- `backend/AuthFlowLab.AuthServer/Services/JwtService.cs` signs user, service, and ID tokens.
 
 API Server:
 
 - `backend/AuthFlowLab.ApiServer/Program.cs` configures local JWT validation, Entra JWT validation, API-key authentication, and authorization policies.
 - `backend/AuthFlowLab.ApiServer/Controllers/ContentController.cs` defines the protected endpoint matrix.
-- `backend/AuthFlowLab.ApiServer/Authentication/ApiKeyAuthenticationHandler.cs` validates `X-Api-Key`.
 
 Frontend:
 
-- `frontend/AuthFlowLab.Web/src/auth.ts` handles local PKCE, callback exchange, nonce validation, MSAL login, and token acquisition.
-- `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login state, API calls, Graph calls, and logout.
-- `frontend/AuthFlowLab.Web/src/components/TokenPanel.tsx` displays decoded JWT fields and raw tokens for inspection.
-- `frontend/AuthFlowLab.Web/src/config.ts` centralizes local URLs, client id, redirect URI, scopes, and storage keys.
+- `frontend/AuthFlowLab.Web/src/auth.ts` handles PKCE, callback exchange, MSAL login, token acquisition, and logout state cleanup.
+- `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login state, API calls, claims inspection, and logout.
+- `frontend/AuthFlowLab.Web/src/config.ts` centralizes local URLs, client ID, redirect URI, scopes, and storage keys.
