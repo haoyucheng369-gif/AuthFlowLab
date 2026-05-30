@@ -27,34 +27,43 @@ In the SSO flow, Entra ID only proves who the user is. AuthFlowLab still decides
 
 The current service-to-service path is local Auth Server only. This project does not configure an Entra client-credentials service client.
 
-## Architecture
+## User Login Flow
 
 ```mermaid
-flowchart TB
-    subgraph LocalLogin[1. SPA local login]
-        L1[React SPA] -->|authorization code + PKCE| L2[AuthFlowLab Auth Server]
-        L2 -->|AuthFlowLab user token| L3[AuthFlowLab API Server]
-    end
+flowchart LR
+    SPA[React SPA]
+    Auth[AuthFlowLab Auth Server]
+    Entra[Microsoft Entra ID]
+    API[AuthFlowLab API Server]
 
-    subgraph SsoLogin[2. SPA SSO through Auth Server]
-        S1[React SPA] -->|starts local authorize flow| S2[AuthFlowLab Auth Server]
-        S2 -->|redirects for user authentication| S3[Microsoft Entra ID]
-        S3 -->|OIDC callback to /signin-entra| S2
-        S2 -->|maps local user and issues AuthFlowLab token| S4[AuthFlowLab API Server]
-    end
+    SPA -->|Local Login: authorization code + PKCE| Auth
+    Auth -->|AuthFlowLab user token| API
 
-    subgraph DirectEntra[3. SPA direct Entra login]
-        E1[React SPA] -->|MSAL login| E2[Microsoft Entra ID]
-        E2 -->|Entra access token| E3[AuthFlowLab API Server]
-    end
+    SPA -->|SSO starts at Auth Server login page| Auth
+    Auth -->|redirects user to Entra| Entra
+    Entra -->|OIDC callback to /signin-entra| Auth
+    Auth -->|maps local user and issues AuthFlowLab token| API
 
-    subgraph ServicePath[4. Service-to-service]
-        C1[worker-service] -->|client_credentials| C2[AuthFlowLab Auth Server]
-        C2 -->|AuthFlowLab service token| C3[AuthFlowLab API Server]
-    end
+    SPA -->|Direct Entra Login with MSAL| Entra
+    Entra -->|Entra access token| API
 ```
 
-SSO is only part of the interactive SPA user-login path. The worker-service path uses local `client_credentials` only; it does not redirect to Entra and does not use Entra service credentials in this project.
+The SPA has three user-facing options: local Auth Server login, Auth Server SSO through Entra, and direct Entra login. In the SSO path, Entra authenticates the user, but AuthFlowLab still issues the API token after local user mapping.
+
+## Service Flow
+
+```mermaid
+flowchart LR
+    Worker[worker-service]
+    Auth[AuthFlowLab Auth Server]
+    API[AuthFlowLab API Server]
+
+    Worker -->|client_credentials| Auth
+    Auth -->|AuthFlowLab service token| Worker
+    Worker -->|Bearer service token| API
+```
+
+The worker-service path is local Auth Server only. It does not use Entra, does not redirect to SSO, and does not represent a signed-in user. API key access is also supported, but it is kept out of the main architecture flow because it is a separate non-OAuth authentication path.
 
 ## Authorization Model
 
