@@ -21,36 +21,40 @@ The project is designed to show how identity systems are typically split in ente
 | Local Login | SPA -> Auth Server -> API | AuthFlowLab access token | Local `Auth:Users` + `Auth:Clients` |
 | Auth Server SSO | SPA -> Auth Server -> Entra -> Auth Server -> API | AuthFlowLab access token | Entra identifies the user; Auth Server maps to local scopes/roles |
 | Direct Entra Login | SPA -> Entra -> API | Entra access token | Entra API scopes such as `access_as_user` |
-| Client Credentials | Service -> Auth Server -> API | AuthFlowLab service token | Registered service client scopes |
+| Client Credentials | Service -> Auth Server -> API | AuthFlowLab service token | Registered local service client scopes |
 
 In the SSO flow, Entra ID only proves who the user is. AuthFlowLab still decides what the user can do by mapping the Entra username claim to a local user record and issuing first-party tokens with local scopes and roles.
+
+The current service-to-service path is local Auth Server only. This project does not configure an Entra client-credentials service client.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph InteractiveUserLogin[Interactive user login]
-        SPA[React SPA]
-        Auth[AuthFlowLab Auth Server]
-        Entra[Microsoft Entra ID]
-        SPA -->|Local Login: authorization code + PKCE| Auth
-        Auth -->|SSO option on login page| Entra
-        Entra -->|OIDC callback to /signin-entra| Auth
-        SPA -->|Direct Entra Login with MSAL| Entra
+flowchart TB
+    subgraph LocalLogin[1. SPA local login]
+        L1[React SPA] -->|authorization code + PKCE| L2[AuthFlowLab Auth Server]
+        L2 -->|AuthFlowLab user token| L3[AuthFlowLab API Server]
     end
 
-    subgraph ServiceToService[Service-to-service]
-        Worker[worker-service]
-        Worker -->|client_credentials only, no SSO| Auth
+    subgraph SsoLogin[2. SPA SSO through Auth Server]
+        S1[React SPA] -->|starts local authorize flow| S2[AuthFlowLab Auth Server]
+        S2 -->|redirects for user authentication| S3[Microsoft Entra ID]
+        S3 -->|OIDC callback to /signin-entra| S2
+        S2 -->|maps local user and issues AuthFlowLab token| S4[AuthFlowLab API Server]
     end
 
-    Auth -->|AuthFlowLab JWT + JWKS| API[AuthFlowLab API Server]
-    Entra -->|Direct Entra JWT + JWKS| API
-    SPA -->|Bearer token| API
-    Worker -->|Service bearer token| API
+    subgraph DirectEntra[3. SPA direct Entra login]
+        E1[React SPA] -->|MSAL login| E2[Microsoft Entra ID]
+        E2 -->|Entra access token| E3[AuthFlowLab API Server]
+    end
+
+    subgraph ServicePath[4. Service-to-service]
+        C1[worker-service] -->|client_credentials| C2[AuthFlowLab Auth Server]
+        C2 -->|AuthFlowLab service token| C3[AuthFlowLab API Server]
+    end
 ```
 
-SSO is only part of the interactive user login path. Background services use `client_credentials` and do not redirect to Entra for user SSO.
+SSO is only part of the interactive SPA user-login path. The worker-service path uses local `client_credentials` only; it does not redirect to Entra and does not use Entra service credentials in this project.
 
 ## Authorization Model
 
