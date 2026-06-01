@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using AuthFlowLab.AuthServer.Options;
 using AuthFlowLab.AuthServer.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 const string FrontendCorsPolicy = "Frontend";
 const string EntraExternalScheme = "Entra";
-// 中文注释：启动时读取 Entra 外部登录配置；配置不完整时保持本地登录流程不变。
+// 启动时读取 Entra 外部登录配置；配置不完整时保持本地登录流程不变。
 var entraExternalLoginOptions = builder.Configuration
     .GetSection("Auth:ExternalProviders:Entra")
     .Get<EntraExternalLoginOptions>() ?? new EntraExternalLoginOptions();
@@ -25,7 +25,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(origins)
             .AllowAnyHeader()
             .AllowAnyMethod()
-            // 中文注释：SPA 调用 /account/logout 时需要携带 Auth Server 的 HttpOnly cookie，后端才能删除登录会话。
+            // SPA 调用 /account/logout 时需要携带 Auth Server 的 HttpOnly cookie，后端才能删除登录会话。
             .AllowCredentials();
     });
 });
@@ -39,7 +39,7 @@ builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        // 中文注释: Auth Server 用自己的登录 cookie 记录用户是否已经在 IdP 登录。
+        //  Auth Server 用自己的登录 cookie 记录用户是否已经在 IdP 登录。
         options.LoginPath = "/account/login";
         options.Cookie.Name = "AuthFlowLab.Auth";
         options.Cookie.HttpOnly = true;
@@ -54,14 +54,14 @@ builder.Services.AddSingleton<RsaKeyService>();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<AuthorizationCodeStore>();
 
-// 中文注释：只有 SSO 配置完整时才注册 Entra OIDC handler，避免没有 Azure 配置时启动失败或误跳转。
+// 只有 SSO 配置完整时才注册 Entra OIDC handler，避免没有 Azure 配置时启动失败或误跳转。
 if (IsEntraExternalLoginConfigured(entraExternalLoginOptions))
 {
     builder.Services
         .AddAuthentication()
         .AddOpenIdConnect(EntraExternalScheme, options =>
         {
-            // 中文注释：Entra 只负责外部认证，最终登录状态仍写入 Auth Server 自己的 cookie。
+            // Entra 只负责外部认证，最终登录状态仍写入 Auth Server 自己的 cookie。
             options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
             options.Authority = entraExternalLoginOptions.Authority;
             options.ClientId = entraExternalLoginOptions.ClientId;
@@ -71,7 +71,7 @@ if (IsEntraExternalLoginConfigured(entraExternalLoginOptions))
             options.SaveTokens = false;
             options.GetClaimsFromUserInfoEndpoint = false;
 
-            // 中文注释：请求 openid/profile/email 用来确认用户身份，业务 API scopes 仍由本地 Auth Server 发 token 时决定。
+            // 请求 openid/profile/email 用来确认用户身份，业务 API scopes 仍由本地 Auth Server 发 token 时决定。
             options.Scope.Clear();
             foreach (var scope in entraExternalLoginOptions.Scopes)
             {
@@ -82,7 +82,7 @@ if (IsEntraExternalLoginConfigured(entraExternalLoginOptions))
             {
                 OnTokenValidated = context =>
                 {
-                    // 中文注释：Entra token 验证成功后，把外部用户映射成本地用户，再套用本地系统的权限模型。
+                    // Entra token 验证成功后，把外部用户映射成本地用户，再套用本地系统的权限模型。
                     var authOptions = context.HttpContext.RequestServices
                         .GetRequiredService<IOptions<AuthOptions>>()
                         .Value;
@@ -98,7 +98,7 @@ if (IsEntraExternalLoginConfigured(entraExternalLoginOptions))
                     var user = authOptions.Users.FirstOrDefault(user =>
                         string.Equals(user.Username, externalUserName, StringComparison.OrdinalIgnoreCase));
 
-                    // 中文注释：没有本地用户映射就拒绝登录，避免任意 Entra 用户直接获得本地系统权限。
+                    // 没有本地用户映射就拒绝登录，避免任意 Entra 用户直接获得本地系统权限。
                     if (user is null)
                     {
                         context.Fail("The Entra user is not mapped to a local AuthFlowLab user.");
@@ -112,7 +112,7 @@ if (IsEntraExternalLoginConfigured(entraExternalLoginOptions))
                         claims.Add(new Claim("external_username", externalUserName));
                     }
 
-                    // 中文注释：把映射后的本地 claims 写入 cookie，后续 /connect/authorize 会基于这些 claims 发本地 token。
+                    // 把映射后的本地 claims 写入 cookie，后续 /connect/authorize 会基于这些 claims 发本地 token。
                     context.Principal = new ClaimsPrincipal(
                         new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
 
@@ -130,7 +130,7 @@ app.UseSwaggerUI();
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 
-// 中文注释: authorize 端点依赖 cookie 认证先还原 User，再决定是否跳登录页或发授权码。
+//  authorize 端点依赖 cookie 认证先还原 User，再决定是否跳登录页或发授权码。
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -158,7 +158,7 @@ static List<Claim> CreateLocalUserClaims(AuthUser user)
 
 static bool IsEntraExternalLoginConfigured(EntraExternalLoginOptions options)
 {
-    // 中文注释：SSO 入口默认关闭；只有配置齐全时才注册 Entra OIDC handler，方便本地无 Azure 配置时运行。
+    // SSO 入口默认关闭；只有配置齐全时才注册 Entra OIDC handler，方便本地无 Azure 配置时运行。
     return options.Enabled &&
         !string.IsNullOrWhiteSpace(options.Authority) &&
         !string.IsNullOrWhiteSpace(options.ClientId) &&

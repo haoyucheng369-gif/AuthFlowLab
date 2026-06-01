@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -17,7 +17,7 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<ApiKeyAu
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // 中文注释: API key 由 ApiServer 本地校验，不调用 AuthServer，也不生成 JWT。
+        //  API key 由 ApiServer 本地校验，不调用 AuthServer，也不生成 JWT。
         if (!Request.Headers.TryGetValue(ApiKeyAuthenticationDefaults.HeaderName, out var headerValues))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
@@ -35,7 +35,7 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<ApiKeyAu
             return Task.FromResult(AuthenticateResult.Fail("The API key is invalid."));
         }
 
-        // 中文注释: 认证成功后把 API key 身份转成 ClaimsPrincipal，供授权策略继续判断。
+        //  认证成功后把 API key 身份转成 ClaimsPrincipal，供授权策略继续判断。
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, credential.Name),

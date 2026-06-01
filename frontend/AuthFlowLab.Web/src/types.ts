@@ -12,3 +12,10 @@ export type CallResult = {
   status: number;
   body: string;
 };
+
+export type BffSessionResponse = {
+  authenticated: boolean;
+  scope: string;
+  expiresAt: string;
+  csrfToken: string;
+};

@@ -381,6 +381,50 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
         Assert.Equal("invalid_grant", error?.Error);
     }
 
+    [Fact]
+    public async Task Token_WithAuthorizationCode_ForConfidentialBffRequiresClientSecret()
+    {
+        var verifier = "test-bff-code-verifier-1234567890";
+        var code = await CreateBffAuthorizationCode(verifier);
+
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = "demo-bff",
+            ["code"] = code,
+            ["redirect_uri"] = "http://localhost:5003/bff/callback",
+            ["code_verifier"] = verifier
+        }));
+
+        var error = await response.Content.ReadFromJsonAsync<AuthErrorResponse>();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("invalid_client", error?.Error);
+    }
+
+    [Fact]
+    public async Task Token_WithAuthorizationCode_ForConfidentialBffAcceptsClientSecret()
+    {
+        var verifier = "test-bff-code-verifier-1234567890";
+        var code = await CreateBffAuthorizationCode(verifier);
+
+        var response = await _client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "authorization_code",
+            ["client_id"] = "demo-bff",
+            ["client_secret"] = "bff-secret",
+            ["code"] = code,
+            ["redirect_uri"] = "http://localhost:5003/bff/callback",
+            ["code_verifier"] = verifier
+        }));
+
+        response.EnsureSuccessStatusCode();
+        var token = await response.Content.ReadFromJsonAsync<TokenResponse>();
+
+        Assert.NotNull(token);
+        Assert.False(string.IsNullOrWhiteSpace(token.AccessToken));
+    }
+
     private async Task<string> CreateAuthorizationCode(
         string verifier,
         string scope = "content.read",
@@ -419,6 +463,29 @@ public sealed class AuthEndpointTests : IClassFixture<AuthServerFactory>
         }));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    private async Task<string> CreateBffAuthorizationCode(string verifier)
+    {
+        await SignInOnAuthServer();
+
+        var authorizeUrl = QueryHelpers.AddQueryString("/connect/authorize", new Dictionary<string, string?>
+        {
+            ["response_type"] = "code",
+            ["client_id"] = "demo-bff",
+            ["redirect_uri"] = "http://localhost:5003/bff/callback",
+            ["scope"] = "openid profile content.read",
+            ["state"] = "bff-state",
+            ["nonce"] = "bff-nonce",
+            ["code_challenge"] = CreateS256Challenge(verifier),
+            ["code_challenge_method"] = "S256"
+        });
+
+        var response = await _client.GetAsync(authorizeUrl);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        var callbackQuery = QueryHelpers.ParseQuery(response.Headers.Location!.Query);
+        return callbackQuery["code"].ToString();
     }
 
     private static string CreateS256Challenge(string verifier)
@@ -472,6 +539,14 @@ public sealed class AuthServerFactory : WebApplicationFactory<Program>
                 ["Auth:Clients:1:Scopes:2"] = "content.read",
                 ["Auth:Clients:1:Scopes:3"] = "content.write",
                 ["Auth:Clients:1:RedirectUris:0"] = "http://127.0.0.1:5173/callback",
+                ["Auth:Clients:2:ClientId"] = "demo-bff",
+                ["Auth:Clients:2:ClientSecret"] = "bff-secret",
+                ["Auth:Clients:2:AllowedGrantTypes:0"] = "authorization_code",
+                ["Auth:Clients:2:Scopes:0"] = "openid",
+                ["Auth:Clients:2:Scopes:1"] = "profile",
+                ["Auth:Clients:2:Scopes:2"] = "content.read",
+                ["Auth:Clients:2:Scopes:3"] = "content.write",
+                ["Auth:Clients:2:RedirectUris:0"] = "http://localhost:5003/bff/callback",
                 ["Auth:ExternalProviders:Entra:Enabled"] = "false"
             });
         });

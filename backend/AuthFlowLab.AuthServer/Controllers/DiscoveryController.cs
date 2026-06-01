@@ -1,4 +1,4 @@
-using AuthFlowLab.AuthServer.Services;
+﻿using AuthFlowLab.AuthServer.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthFlowLab.AuthServer.Controllers;
@@ -21,7 +21,7 @@ public sealed class DiscoveryController : ControllerBase
     {
         var issuer = GetIssuer();
 
-        // 中文注释: discovery 文档告诉客户端和 API：authorize/token/userinfo/JWKS 端点在哪里、支持哪些能力。
+        //  discovery 文档告诉客户端和 API：authorize/token/userinfo/JWKS 端点在哪里、支持哪些能力。
         return Ok(new
         {
             issuer,
@@ -42,7 +42,7 @@ public sealed class DiscoveryController : ControllerBase
     [HttpGet("jwks.json")]
     public IActionResult Jwks()
     {
-        // 中文注释: JWKS 只暴露公钥参数，API Server 用它验证 JWT 签名，不需要 public.key 文件。
+        //  JWKS 只暴露公钥参数，API Server 用它验证 JWT 签名，不需要 public.key 文件。
         return Ok(new
         {
             keys = new[] { _rsaKeyService.CreateJsonWebKey() }

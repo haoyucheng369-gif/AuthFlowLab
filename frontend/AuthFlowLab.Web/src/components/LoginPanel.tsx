@@ -2,6 +2,7 @@ type LoginPanelProps = {
   message: string;
   onLogin: () => void;
   onEntraLogin: () => void;
+  onBffLogin: () => void;
   onLogout: () => void;
 };
 
@@ -9,6 +10,7 @@ export function LoginPanel({
   message,
   onLogin,
   onEntraLogin,
+  onBffLogin,
   onLogout
 }: LoginPanelProps) {
   return (
@@ -19,7 +21,7 @@ export function LoginPanel({
       </div>
 
       <p className="muted">
-        Sign in with the local lab IdP or Entra ID. The SPA starts the authorization request and stores demo tokens locally.
+        Compare browser token storage with a BFF session that keeps the access token on the server.
       </p>
 
       <div className="button-row">
@@ -28,6 +30,9 @@ export function LoginPanel({
         </button>
         <button type="button" className="btn btn-primary" onClick={onEntraLogin}>
           Entra Login
+        </button>
+        <button type="button" className="btn btn-primary" onClick={onBffLogin}>
+          BFF Login
         </button>
         <button type="button" className="btn btn-outline" onClick={onLogout}>
           Logout

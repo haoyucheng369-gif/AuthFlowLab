@@ -4,8 +4,8 @@ import {
   type AccountInfo,
   type AuthenticationResult
 } from '@azure/msal-browser';
-import { authServer, clientId, entra, redirectUri, scope, storageKeys } from './config';
-import type { TokenResponse } from './types';
+import { authServer, bffServer, clientId, entra, redirectUri, scope, storageKeys } from './config';
+import type { BffSessionResponse, TokenResponse } from './types';
 
 export const msalInstance = new PublicClientApplication({
   auth: {
@@ -51,6 +51,36 @@ export async function startEntraLogin() {
   await msalReady;
   await msalInstance.loginRedirect({
     scopes: [...entra.apiScopes]
+  });
+}
+
+export function startBffLogin() {
+  // BFF 自己负责授权码交换和 token 保存，浏览器只需要跟随登录跳转。
+  window.location.assign(`${bffServer}/bff/login`);
+}
+
+export async function readBffSession() {
+  // HttpOnly cookie 会由浏览器自动发送，前端只能读取会话状态，不能读取 cookie 或 access token。
+  const response = await fetch(`${bffServer}/bff/session`, {
+    credentials: 'include'
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`BFF session check failed: HTTP ${response.status}`);
+  }
+
+  return (await response.json()) as BffSessionResponse;
+}
+
+export async function logoutBffSession() {
+  // 退出 BFF 会话时让服务端删除 token session，并让浏览器删除 HttpOnly cookie。
+  await fetch(`${bffServer}/bff/logout`, {
+    method: 'POST',
+    credentials: 'include'
   });
 }
 
@@ -192,7 +222,7 @@ export function clearSession() {
 }
 
 export async function logoutSession() {
-  // 中文注释：完整退出要让 Auth Server 删除 HttpOnly cookie；只清 token 不会清掉 IdP 登录会话。
+  // 完整退出要让 Auth Server 删除 HttpOnly cookie；只清 token 不会清掉 IdP 登录会话。
   await fetch(`${authServer}/account/logout`, {
     method: 'POST',
     credentials: 'include'

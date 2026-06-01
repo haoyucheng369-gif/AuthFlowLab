@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -27,7 +27,7 @@ public sealed class RsaKeyService
 
     public SigningCredentials CreateSigningCredentials()
     {
-        // 中文注释: 私钥只留在 Auth Server 内部，用来签名 access_token 和 id_token。
+        //  私钥只留在 Auth Server 内部，用来签名 access_token 和 id_token。
         var signingKey = new RsaSecurityKey(_rsa.Value)
         {
             KeyId = KeyId
@@ -38,7 +38,7 @@ public sealed class RsaKeyService
 
     public JsonWebKey CreateJsonWebKey()
     {
-        // 中文注释: 从同一把 RSA key 导出公钥参数，供 JWKS endpoint 返回给 API Server。
+        //  从同一把 RSA key 导出公钥参数，供 JWKS endpoint 返回给 API Server。
         var parameters = _rsa.Value.ExportParameters(includePrivateParameters: false);
 
         return new JsonWebKey
@@ -66,7 +66,7 @@ public sealed class RsaKeyService
             return LoadPrivateKeyFromFile(privateKeyPath);
         }
 
-        // 中文注释: Docker 或全新开发环境没有本地私钥时，生成临时签名密钥以便实验项目可直接启动。
+        //  Docker 或全新开发环境没有本地私钥时，生成临时签名密钥以便实验项目可直接启动。
         _logger.LogWarning("Private key file '{PrivateKeyPath}' was not found. Using an ephemeral RSA key for this process.", privateKeyPath);
         return RSA.Create(2048);
     }

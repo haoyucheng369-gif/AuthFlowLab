@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AuthFlowLab.AuthServer.Models;
 using AuthFlowLab.AuthServer.Options;
@@ -33,7 +33,7 @@ public class JwtService
         var scopeList = scopes.ToList();
         var scope = string.Join(' ', scopeList);
 
-        // 中文注释: access_token 面向 API Server，包含用户、角色、scope 和 token_type=user。
+        //  access_token 面向 API Server，包含用户、角色、scope 和 token_type=user。
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, username),
@@ -47,7 +47,7 @@ public class JwtService
 
         var accessToken = GenerateJwt(claims, GetApiAudience());
 
-        // 中文注释: 只有请求 openid scope 时才额外签发 id_token，供 SPA 识别登录用户。
+        //  只有请求 openid scope 时才额外签发 id_token，供 SPA 识别登录用户。
         var idToken = scopeList.Contains("openid", StringComparer.Ordinal)
             ? GenerateIdToken(username, role, clientId, nonce)
             : null;
@@ -59,7 +59,7 @@ public class JwtService
     {
         var scope = string.Join(' ', scopes);
 
-        // 中文注释: service token 代表客户端应用自身，适合后台任务或服务间调用。
+        //  service token 代表客户端应用自身，适合后台任务或服务间调用。
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, clientId),
@@ -103,7 +103,7 @@ public class JwtService
 
     private string GenerateJwt(List<Claim> claims, string audience)
     {
-        // 中文注释: 所有 JWT 都用 Auth Server 的 RSA 私钥签名；audience 决定 token 给谁使用。
+        //  所有 JWT 都用 Auth Server 的 RSA 私钥签名；audience 决定 token 给谁使用。
         var token = new JwtSecurityToken(
             issuer: GetIssuer(),
             audience: audience,

@@ -29,6 +29,25 @@ services:
     depends_on:
       - auth-server
 
+  # BFF 在服务端保存 access token，浏览器只通过 HttpOnly cookie 访问 BFF。
+  bff:
+    build:
+      context: .
+      dockerfile: backend/AuthFlowLab.Bff/Dockerfile
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Bff__AuthServerPublicUrl: http://localhost:5001
+      Bff__AuthServerBackchannelUrl: http://auth-server:8080
+      Bff__ApiServerBackchannelUrl: http://api-server:8080
+      Bff__CallbackUrl: http://localhost:5003/bff/callback
+      Bff__FrontendUrl: http://localhost:5173
+      Cors__AllowedOrigins__0: http://localhost:5173
+    ports:
+      - "5003:8080"
+    depends_on:
+      - auth-server
+      - api-server
+
   frontend:
     build:
       context: frontend/AuthFlowLab.Web
@@ -37,3 +56,4 @@ services:
     depends_on:
       - auth-server
       - api-server
+      - bff

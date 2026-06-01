@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -89,7 +89,7 @@ public class ConnectController : ControllerBase
 
         if (User.Identity?.IsAuthenticated != true)
         {
-            // 中文注释: 未登录时跳转到 Auth Server 登录页，保留原始 authorize URL 作为登录后的 returnUrl。
+            //  未登录时跳转到 Auth Server 登录页，保留原始 authorize URL 作为登录后的 returnUrl。
             var returnUrl = Request.PathBase + Request.Path + Request.QueryString;
             var loginUrl = QueryHelpers.AddQueryString("/account/login", "returnUrl", returnUrl);
             return Redirect(loginUrl);
@@ -102,7 +102,7 @@ public class ConnectController : ControllerBase
             return Unauthorized(new AuthErrorResponse("invalid_grant", "The signed-in user is no longer valid."));
         }
 
-        // 中文注释: scope 同时受用户权限和客户端注册权限约束，OIDC scope 不等同于 API 权限。
+        //  scope 同时受用户权限和客户端注册权限约束，OIDC scope 不等同于 API 权限。
         var requestedScopes = ResolveRequestedScopes(scope, user.Scopes);
         if (requestedScopes.Contains("openid", StringComparer.Ordinal) && string.IsNullOrWhiteSpace(nonce))
         {
@@ -119,7 +119,7 @@ public class ConnectController : ControllerBase
 
         var grantedScopes = ResolveGrantedUserScopes(requestedScopes, user, client);
 
-        // 中文注释: 授权码只保存服务端状态，浏览器地址栏只拿到一次性 code 和原始 state。
+        //  授权码只保存服务端状态，浏览器地址栏只拿到一次性 code 和原始 state。
         var code = _authorizationCodeStore.Create(
             client.ClientId,
             redirectUri,
@@ -185,11 +185,11 @@ public class ConnectController : ControllerBase
                 "The grant_type form field is required."));
         }
 
-        // 中文注释: token endpoint 同时承载服务身份的 client_credentials 和用户登录后的 authorization_code。
+        //  token endpoint 同时承载服务身份的 client_credentials 和用户登录后的 authorization_code。
         return grantType switch
         {
             ClientCredentialsGrantType => HandleClientCredentials(clientId, clientSecret, scope),
-            AuthorizationCodeGrantType => HandleAuthorizationCode(clientId, code, redirectUri, codeVerifier),
+            AuthorizationCodeGrantType => HandleAuthorizationCode(clientId, clientSecret, code, redirectUri, codeVerifier),
             _ => BadRequest(new AuthErrorResponse(
                 "unsupported_grant_type",
                 "Only client_credentials and authorization_code are supported by this token endpoint."))
@@ -223,12 +223,13 @@ public class ConnectController : ControllerBase
                 "The requested scope is not allowed for this client."));
         }
 
-        // 中文注释: client_credentials 发的是服务 token，不代表任何用户。
+        //  client_credentials 发的是服务 token，不代表任何用户。
         return Ok(_jwtService.GenerateServiceToken(client.ClientId, requestedScopes));
     }
 
     private IActionResult HandleAuthorizationCode(
         string? clientId,
+        string? clientSecret,
         string? code,
         string? redirectUri,
         string? codeVerifier)
@@ -250,6 +251,13 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("unauthorized_client", "The client cannot use authorization_code."));
         }
 
+        // SPA 是没有 secret 的 public client；BFF 是 confidential client，换 token 时必须同时校验 client_secret。
+        if (!string.IsNullOrWhiteSpace(client.ClientSecret) &&
+            !string.Equals(client.ClientSecret, clientSecret, StringComparison.Ordinal))
+        {
+            return Unauthorized(new AuthErrorResponse("invalid_client", "The client id or secret is invalid."));
+        }
+
         if (string.IsNullOrWhiteSpace(code) ||
             !_authorizationCodeStore.TryConsume(code, out var authorizationCode) ||
             authorizationCode is null)
@@ -267,7 +275,7 @@ public class ConnectController : ControllerBase
             return BadRequest(new AuthErrorResponse("invalid_grant", "The PKCE code_verifier is invalid."));
         }
 
-        // 中文注释: code、redirect_uri、client_id、PKCE 全部校验后，才签发用户 access_token/id_token。
+        //  code、redirect_uri、client_id、PKCE 全部校验后，才签发用户 access_token/id_token。
         return Ok(_jwtService.GenerateUserToken(
             authorizationCode.Username,
             authorizationCode.Role,
@@ -343,7 +351,7 @@ public class ConnectController : ControllerBase
         var handler = new JwtSecurityTokenHandler();
         try
         {
-            // 中文注释: UserInfo 复用本 Auth Server 的签名公钥验证 access_token，避免信任未验证的 JWT 内容。
+            //  UserInfo 复用本 Auth Server 的签名公钥验证 access_token，避免信任未验证的 JWT 内容。
             return handler.ValidateToken(token, new TokenValidationParameters
             {
                 ValidateIssuer = true,
