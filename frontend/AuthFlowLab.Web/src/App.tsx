@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { apiServer, authServer } from './config';
+import { apiServer, authServer, bffServer } from './config';
 import {
   decodeJwtPayload,
   getApiToken,
   getGraphAccessToken,
   initializeAuthState,
+  logoutBffSession,
   logoutSession,
+  readBffSession,
   readTokens,
+  startBffLogin,
   startEntraLogin,
   startLogin
 } from './auth';
@@ -14,10 +17,11 @@ import { LoginPanel } from './components/LoginPanel';
 import { ResultPanel } from './components/ResultPanel';
 import { SessionPanel } from './components/SessionPanel';
 import { TokenPanel } from './components/TokenPanel';
-import type { CallResult, TokenResponse } from './types';
+import type { BffSessionResponse, CallResult, TokenResponse } from './types';
 
 export function App() {
   const [tokens, setTokens] = useState<TokenResponse | null>(() => readTokens());
+  const [bffSession, setBffSession] = useState<BffSessionResponse | null>(null);
   const [message, setMessage] = useState('');
   const [result, setResult] = useState<CallResult | null>(null);
 
@@ -28,6 +32,18 @@ export function App() {
   const accessTokenPayload = useMemo(() => {
     return tokens?.access_token ? decodeJwtPayload(tokens.access_token) : null;
   }, [tokens]);
+
+  useEffect(() => {
+    // 页面加载后检查 BFF 的 HttpOnly cookie，用独立状态表示服务端 token 会话。
+    void readBffSession()
+      .then((session) => {
+        if (session) {
+          setBffSession(session);
+          setMessage('BFF session ready.');
+        }
+      })
+      .catch((error: Error) => setMessage(error.message));
+  }, []);
 
   useEffect(() => {
     void initializeAuthState()
@@ -74,7 +90,35 @@ export function App() {
     await startEntraLogin();
   }
 
+  function handleBffLogin() {
+    setMessage('');
+    setResult(null);
+    startBffLogin();
+  }
+
   async function callApi(path: string, label: string, method = 'GET') {
+    // BFF 模式统一走服务端代理；写请求额外携带 CSRF token。
+    if (bffSession) {
+      const bffPath = path === `${apiServer}/content/read`
+        ? '/bff/content/read'
+        : path === `${apiServer}/content/me`
+          ? '/bff/content/me'
+          : '/bff/content/write';
+      const response = await fetch(`${bffServer}${bffPath}`, {
+        method,
+        credentials: 'include',
+        headers: method === 'POST'
+          ? { 'X-CSRF-TOKEN': bffSession.csrfToken }
+          : undefined
+      });
+      setResult({
+        label: `BFF ${bffPath} -> ${label}`,
+        status: response.status,
+        body: await response.text()
+      });
+      return;
+    }
+
     if (!tokens?.access_token) {
       setMessage('Login first.');
       return;
@@ -100,6 +144,18 @@ export function App() {
   }
 
   async function callUserInfo() {
+    if (bffSession) {
+      const response = await fetch(`${bffServer}/bff/userinfo`, {
+        credentials: 'include'
+      });
+      setResult({
+        label: 'BFF /bff/userinfo -> AuthServer /connect/userinfo',
+        status: response.status,
+        body: await response.text()
+      });
+      return;
+    }
+
     if (!tokens?.access_token) {
       setMessage('Login first.');
       return;
@@ -126,28 +182,36 @@ export function App() {
   }
 
   async function logout() {
-    // 中文注释：Logout 同时清除前端 token 和 Auth Server cookie，下一次 Local Login 才会重新显示登录页。
+    // Logout 同时清除 SPA token、Auth Server cookie 和 BFF 服务端 token session。
+    await logoutBffSession();
     await logoutSession();
     setTokens(null);
+    setBffSession(null);
     setResult(null);
     setMessage('Logged out.');
   }
+
+  const browserTokens = bffSession ? null : tokens;
+  const browserIdTokenPayload = bffSession ? null : idTokenPayload;
+  const browserAccessTokenPayload = bffSession ? null : accessTokenPayload;
 
   return (
     <main className="app-shell">
       <LoginPanel
         message={message}
         onLogout={() => void logout()}
+        onBffLogin={handleBffLogin}
         onEntraLogin={() => void handleEntraLogin()}
         onLogin={() => void handleLogin()}
       />
 
-      {/* 中文注释：Claims 按钮会调用 /content/me，查看 token 在 API 中被解析成哪些 Identity 和 Claims。 */}
+      {/* Claims 按钮会调用 /content/me，查看 token 在 API 中被解析成哪些 Identity 和 Claims。 */}
       <SessionPanel
-        accessTokenPayload={accessTokenPayload}
-        idTokenPayload={idTokenPayload}
-        provider={tokens?.provider}
-        isAuthenticated={Boolean(tokens)}
+        accessTokenPayload={browserAccessTokenPayload}
+        idTokenPayload={browserIdTokenPayload}
+        provider={bffSession ? 'bff' : tokens?.provider}
+        serverSideScope={bffSession?.scope}
+        isAuthenticated={Boolean(bffSession ?? tokens)}
         onCallApi={() => void callApi(`${apiServer}/content/read`, 'ApiServer /content/read')}
         onCallClaims={() => void callApi(`${apiServer}/content/me`, 'ApiServer /content/me')}
         onCallWriteApi={() => void callApi(`${apiServer}/content/write`, 'ApiServer /content/write', 'POST')}
@@ -156,11 +220,11 @@ export function App() {
 
       <ResultPanel result={result} />
       <TokenPanel
-        accessToken={tokens?.access_token}
-        accessTokenPayload={accessTokenPayload}
-        idToken={tokens?.id_token}
-        idTokenPayload={idTokenPayload}
-        provider={tokens?.provider}
+        accessToken={browserTokens?.access_token}
+        accessTokenPayload={browserAccessTokenPayload}
+        idToken={browserTokens?.id_token}
+        idTokenPayload={browserIdTokenPayload}
+        provider={browserTokens?.provider}
       />
     </main>
   );

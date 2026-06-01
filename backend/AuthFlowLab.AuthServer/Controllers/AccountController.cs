@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using System.Text.Encodings.Web;
 using AuthFlowLab.AuthServer.Models;
 using AuthFlowLab.AuthServer.Options;
@@ -31,7 +31,7 @@ public sealed class AccountController : Controller
     [HttpGet("login")]
     public IActionResult Login([FromQuery] string? returnUrl = null)
     {
-        // 中文注释: 登录页由 Auth Server 自己展示，SPA 不再收集或传递用户密码。
+        //  登录页由 Auth Server 自己展示，SPA 不再收集或传递用户密码。
         return Content(RenderLoginPage(returnUrl, null), "text/html; charset=utf-8");
     }
 
@@ -47,7 +47,7 @@ public sealed class AccountController : Controller
 
         if (user is null)
         {
-            // 中文注释: 登录页认证失败时只重新显示表单，不把密码写入 URL 或日志。
+            //  登录页认证失败时只重新显示表单，不把密码写入 URL 或日志。
             return Content(RenderLoginPage(returnUrl, "The username or password is invalid."), "text/html; charset=utf-8");
         }
 
@@ -63,7 +63,7 @@ public sealed class AccountController : Controller
             claims.Add(new Claim("scope", scope));
         }
 
-        // 中文注释: 登录成功只写入 HttpOnly cookie；真正给 SPA 的 token 仍然要走 /connect/token。
+        //  登录成功只写入 HttpOnly cookie；真正给 SPA 的 token 仍然要走 /connect/token。
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await HttpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
@@ -78,13 +78,13 @@ public sealed class AccountController : Controller
         [FromForm] string provider,
         [FromForm] string? returnUrl = null)
     {
-        // 中文注释：外部登录入口只接受当前支持的 Entra provider，并且必须先确认配置完整。
+        // 外部登录入口只接受当前支持的 Entra provider，并且必须先确认配置完整。
         if (!IsEntraLoginEnabled() || provider != EntraExternalScheme)
         {
             return NotFound();
         }
 
-        // 中文注释：外部登录只负责认证企业用户；回调成功后仍然写入 Auth Server 自己的登录 cookie。
+        // 外部登录只负责认证企业用户；回调成功后仍然写入 Auth Server 自己的登录 cookie。
         return Challenge(
             new AuthenticationProperties
             {
@@ -105,7 +105,7 @@ public sealed class AccountController : Controller
         var encodedReturnUrl = _htmlEncoder.Encode(SanitizeReturnUrl(returnUrl));
         var encodedError = error is null ? string.Empty : _htmlEncoder.Encode(error);
         var errorMarkup = error is null ? string.Empty : $"<div class=\"alert\">{encodedError}</div>";
-        // 中文注释：只有 Entra SSO 可用时才渲染 Microsoft 登录按钮，本地开发默认只显示本地账号登录。
+        // 只有 Entra SSO 可用时才渲染 Microsoft 登录按钮，本地开发默认只显示本地账号登录。
         var externalLoginMarkup = IsEntraLoginEnabled()
             ? $$"""
     <div class="divider"><span>or</span></div>
@@ -174,13 +174,13 @@ public sealed class AccountController : Controller
 
     private string SanitizeReturnUrl(string? returnUrl)
     {
-        // 中文注释: 只允许回跳到本站路径，避免登录后被恶意 returnUrl 带到外部网站。
+        //  只允许回跳到本站路径，避免登录后被恶意 returnUrl 带到外部网站。
         return Url.IsLocalUrl(returnUrl) ? returnUrl! : "/";
     }
 
     private bool IsEntraLoginEnabled()
     {
-        // 中文注释：只有 Entra 外部登录配置完整时才显示 SSO 入口，避免本地开发缺少 Azure 配置时误触发跳转。
+        // 只有 Entra 外部登录配置完整时才显示 SSO 入口，避免本地开发缺少 Azure 配置时误触发跳转。
         return _entraExternalLoginOptions.Enabled &&
             !string.IsNullOrWhiteSpace(_entraExternalLoginOptions.Authority) &&
             !string.IsNullOrWhiteSpace(_entraExternalLoginOptions.ClientId) &&

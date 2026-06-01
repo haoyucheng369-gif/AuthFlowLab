@@ -9,6 +9,7 @@ The project is designed to show how identity systems are typically split in ente
 - Custom Auth Server with OAuth2 authorization code + PKCE, client credentials, OIDC discovery, UserInfo, and JWKS.
 - Federated SSO from the Auth Server to Microsoft Entra ID.
 - API Server that accepts both local Auth Server JWTs and direct Entra ID access tokens.
+- BFF backend that stores user access tokens server-side and exposes an HttpOnly session cookie to the browser.
 - React SPA with local login, Auth Server SSO login, direct Entra login, logout, token inspection, and claims inspection.
 - Authorization policies for user scopes, roles, service tokens, and API keys.
 - RSA-backed JWT signing with public-key discovery through JWKS.
@@ -22,6 +23,7 @@ The project is designed to show how identity systems are typically split in ente
 | Auth Server SSO | SPA -> Auth Server -> Entra -> Auth Server -> API | AuthFlowLab access token | Entra identifies the user; Auth Server maps to local scopes/roles |
 | Direct Entra Login | SPA -> Entra -> API | Entra access token | Entra API scopes such as `access_as_user` |
 | Client Credentials | Service -> Auth Server -> API | AuthFlowLab service token | Registered local service client scopes |
+| BFF Login | Browser -> BFF -> Auth Server -> BFF -> API | AuthFlowLab access token stored by BFF | Local `Auth:Users` + `demo-bff` client |
 
 In the SSO flow, Entra ID only proves who the user is. AuthFlowLab still decides what the user can do by mapping the Entra username claim to a local user record and issuing first-party tokens with local scopes and roles.
 
@@ -71,6 +73,26 @@ flowchart LR
 
 The worker-service path is local Auth Server only. It does not use Entra, does not redirect to SSO, and does not represent a signed-in user. API key access is also supported, but it is kept out of the main architecture flow because it is a separate non-OAuth authentication path.
 
+## BFF Backend Flow
+
+```mermaid
+flowchart LR
+    Browser[Browser]
+    BFF[AuthFlowLab BFF]
+    Auth[AuthFlowLab Auth Server]
+    API[AuthFlowLab API Server]
+
+    Browser -->|E1 GET /bff/login| BFF
+    BFF -->|E2 authorization code + PKCE| Auth
+    Auth -->|E3 callback with code| BFF
+    BFF -->|E4 code + verifier + client secret| Auth
+    Auth -->|E5 access token| BFF
+    Browser -->|E6 HttpOnly session cookie| BFF
+    BFF -->|E7 bearer token| API
+```
+
+The BFF stores access tokens in a server-side in-memory session. The browser receives only `AuthFlowLab.Bff.Session`, an HttpOnly cookie containing a random session identifier. The SPA exposes a separate BFF login mode and routes read, claims, write, and UserInfo requests through the BFF. Write requests require an `X-CSRF-TOKEN` header obtained from the BFF session endpoint.
+
 ## Authorization Model
 
 Local AuthFlowLab tokens use the `scope` claim:
@@ -106,6 +128,7 @@ Local backend:
 ```powershell
 dotnet run --project backend\AuthFlowLab.AuthServer\AuthFlowLab.AuthServer.csproj --urls http://localhost:5001
 dotnet run --project backend\AuthFlowLab.ApiServer\AuthFlowLab.ApiServer.csproj --urls http://localhost:5002
+dotnet run --project backend\AuthFlowLab.Bff\AuthFlowLab.Bff.csproj --urls http://localhost:5003
 ```
 
 Local frontend:
@@ -126,6 +149,7 @@ Open `http://localhost:5173`.
 | User | `admin` | `admin123` | `content.read content.write`, `Admin` role |
 | Client | `worker-service` | `worker-secret` | `content.read content.write` |
 | SPA | `demo-spa` | none | `openid profile content.read content.write` |
+| BFF | `demo-bff` | `bff-secret` | `openid profile content.read content.write` |
 | API key | `internal-tool` | `dev-api-key-123` | `X-Api-Key` |
 
 These are development credentials for the local environment. Do not use committed secrets for production systems.
@@ -154,7 +178,7 @@ The Entra username claim, by default `preferred_username`, must match a local `A
 
 ## Logout
 
-The SPA `Logout` action clears local token state and calls Auth Server `/account/logout` to remove the server-side HttpOnly login cookie. Clearing only browser tokens is not enough because an existing Auth Server cookie can still issue a fresh authorization code.
+The SPA `Logout` action clears local token state, removes the BFF token session, and calls Auth Server `/account/logout` to remove the server-side HttpOnly login cookie. Clearing only browser tokens is not enough because an existing Auth Server cookie can still issue a fresh authorization code.
 
 ## API Surface
 
@@ -169,6 +193,19 @@ The SPA `Logout` action clears local token state and calls Auth Server `/account
 | `GET /content/service` | `token_type=service` |
 | `GET /content/api-key` | Valid `X-Api-Key` header |
 | `GET /health` | Service health probe |
+
+BFF endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /bff/login` | Start BFF authorization-code login |
+| `GET /bff/callback` | Exchange the authorization code server-side |
+| `GET /bff/session` | Return BFF session status without exposing the access token |
+| `GET /bff/content/read` | Proxy a read request to API Server |
+| `GET /bff/content/me` | Proxy the API Server claims inspection request |
+| `POST /bff/content/write` | Proxy a write request with `X-CSRF-TOKEN` validation |
+| `GET /bff/userinfo` | Proxy the Auth Server UserInfo request |
+| `POST /bff/logout` | Delete the BFF token session and HttpOnly cookie |
 
 HTTP request examples are available in:
 
@@ -204,3 +241,8 @@ Frontend:
 - `frontend/AuthFlowLab.Web/src/auth.ts` handles PKCE, callback exchange, MSAL login, token acquisition, and logout state cleanup.
 - `frontend/AuthFlowLab.Web/src/App.tsx` coordinates login state, API calls, claims inspection, and logout.
 - `frontend/AuthFlowLab.Web/src/config.ts` centralizes local URLs, client ID, redirect URI, scopes, and storage keys.
+
+BFF:
+
+- `backend/AuthFlowLab.Bff/Controllers/BffController.cs` owns login, callback, session inspection, API proxies, CSRF validation, and logout.
+- `backend/AuthFlowLab.Bff/Services/BffSessionStore.cs` stores temporary PKCE state and server-side token sessions in memory.

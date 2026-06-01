@@ -19,7 +19,7 @@ export function TokenPanel({
     <section className="card content-card">
       <h2>Token Inspector</h2>
 
-      {/* 中文注释：这里解码浏览器当前持有的 JWT，帮助对比本地 IdP token 和 Entra ID token 的 issuer、audience、scope。 */}
+      {/* 这里解码浏览器当前持有的 JWT，帮助对比本地 IdP token 和 Entra ID token 的 issuer、audience、scope。 */}
       <dl className="claim-list">
         <ClaimItem label="Provider" value={provider ?? inferProvider(accessTokenPayload)} />
         <ClaimItem label="Issuer" value={stringClaim(accessTokenPayload?.iss)} />
@@ -56,7 +56,7 @@ function TokenBlock({ label, value }: { label: string; value?: string }) {
 }
 
 function inferProvider(payload: Record<string, unknown> | null) {
-  // 中文注释：根据 issuer 粗略推断 token 来自 Entra ID 还是本地 AuthServer；最终安全判断仍由 API Server 的 JWT 验证完成。
+  // 根据 issuer 粗略推断 token 来自 Entra ID 还是本地 AuthServer；最终安全判断仍由 API Server 的 JWT 验证完成。
   const issuer = stringClaim(payload?.iss);
   if (issuer.startsWith('https://login.microsoftonline.com/') || issuer.startsWith('https://sts.windows.net/')) {
     return 'entra';
