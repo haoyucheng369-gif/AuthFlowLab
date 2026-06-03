@@ -1,12 +1,12 @@
 # AuthFlowLab
 
-AuthFlowLab is a full-stack identity and authorization reference implementation built with ASP.NET Core and React. It demonstrates a custom OAuth2/OIDC authorization server, protected resource APIs, browser-based login, service-to-service access, Microsoft Entra ID integration, and federated SSO.
+AuthFlowLab is a full-stack identity and authorization reference implementation built with ASP.NET Core and React. It implements a custom OAuth2/OIDC authorization server from scratch, protected resource APIs, browser-based login, service-to-service access, Microsoft Entra ID integration, federated SSO, and a BFF token-handling model.
 
-The project is designed to show how identity systems are typically split in enterprise applications: authentication, token issuance, JWT validation, scope/role authorization, external identity federation, and API protection.
+The architecture mirrors common enterprise identity boundaries: authentication, token issuance, JWT validation, scope/role authorization, external identity federation, browser session protection, and API access control.
 
 ## Capabilities
 
-- Custom Auth Server with OAuth2 authorization code + PKCE, client credentials, OIDC discovery, UserInfo, and JWKS.
+- From-scratch Auth Server with OAuth2 authorization code + PKCE, client credentials, OIDC discovery, UserInfo, and JWKS.
 - Federated SSO from the Auth Server to Microsoft Entra ID.
 - API Server that accepts both local Auth Server JWTs and direct Entra ID access tokens.
 - BFF backend that stores user access tokens server-side and exposes an HttpOnly session cookie to the browser.
@@ -107,7 +107,7 @@ Direct Entra tokens use Entra claims:
 - `scp=access_as_user` allows read endpoints.
 - `scp=write_as_user` can allow write endpoints if that scope is configured in Azure.
 
-The current direct Entra SPA configuration requests only `access_as_user` so the demo works even when the optional Azure `write_as_user` scope has not been created.
+The current direct Entra SPA configuration requests only `access_as_user` so the flow works even when the optional Azure `write_as_user` scope has not been created.
 
 ## Run
 
